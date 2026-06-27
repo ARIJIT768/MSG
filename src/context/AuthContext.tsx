@@ -65,19 +65,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('user_pic', profilePicUri);
       }
       
-      // Save to global Firestore registry
-      await setDoc(doc(db, 'users', username), {
-        username,
-        profilePicUrl: profilePicUri || null,
-        registeredAt: new Date().toISOString()
-      }, { merge: true });
-
       setUsername(username);
       if (profilePicUri) setProfilePicUrl(profilePicUri);
       setIsRegistered(true);
       setIsAuthenticated(true);
+
+      // Save to global Firestore registry (non-blocking)
+      try {
+        await setDoc(doc(db, 'users', username), {
+          username,
+          profilePicUrl: profilePicUri || null,
+          registeredAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (dbError) {
+        console.error('Firestore user sync failed (Check Firebase Rules):', dbError);
+      }
     } catch (e) {
-      console.error('Failed to register', e);
+      console.error('Failed to register locally', e);
+      throw e;
     }
   };
 

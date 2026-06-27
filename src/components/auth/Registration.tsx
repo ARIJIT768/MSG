@@ -39,11 +39,15 @@ export default function Registration() {
           
           const snapshot = await uploadBytes(storageRef, pfpFile);
           downloadURL = await getDownloadURL(snapshot.ref);
-        } catch (e) {
+        } catch (e: any) {
           console.error("Failed to upload PFP", e);
-          alert("Failed to upload profile picture. Try again.");
-          setIsUploading(false);
-          return;
+          if (e.message && e.message.includes('unauthorized')) {
+             alert("Firebase Storage Rules error! You need to allow read/write in your Firebase Console. Continuing without a profile picture for now.");
+          } else {
+             alert("Failed to upload profile picture. Try again without one.");
+             setIsUploading(false);
+             return;
+          }
         }
       }
       
