@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { db } from '../../config/firebase';
 import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import CryptoJS from 'crypto-js';
-import { MessageSquarePlus, LogOut } from 'lucide-react';
+import { MessageSquarePlus, LogOut, Shield } from 'lucide-react';
 import ContactsModal from './ContactsModal';
 import './Main.css';
 
@@ -16,8 +16,8 @@ const getSharedKey = (user1: string, user2: string) => {
 const decryptMessage = (ciphertext: string, sharedKey: string) => {
   try {
     const bytes = CryptoJS.AES.decrypt(ciphertext, sharedKey);
-    return bytes.toString(CryptoJS.enc.Utf8);
-  } catch (e) {
+    return bytes.toString(CryptoJS.enc.Utf8) || 'Encrypted Message';
+  } catch {
     return 'Encrypted Message';
   }
 };
@@ -47,12 +47,16 @@ export default function Inbox() {
     if (!username) return;
 
     const fetchProfiles = async () => {
-      const snap = await getDocs(collection(db, 'users'));
-      const profs: Record<string, UserProfile> = {};
-      snap.forEach(d => {
-        profs[d.id] = d.data() as UserProfile;
-      });
-      setProfiles(profs);
+      try {
+        const snap = await getDocs(collection(db, 'users'));
+        const profs: Record<string, UserProfile> = {};
+        snap.forEach(d => {
+          profs[d.id] = d.data() as UserProfile;
+        });
+        setProfiles(profs);
+      } catch (err) {
+        console.warn('Failed to fetch profiles:', err);
+      }
     };
     fetchProfiles();
 
@@ -70,6 +74,8 @@ export default function Inbox() {
       });
       
       setChats(chatList);
+    }, (err) => {
+      console.warn('Chat listener error:', err);
     });
 
     return () => unsubscribe();
@@ -81,17 +87,19 @@ export default function Inbox() {
       <div className="sidebar glass-panel">
         <div className="sidebar-header">
           <h2>Inbox <span className="badge">{chats.length}</span></h2>
-          <button className="icon-button" onClick={() => setShowContacts(true)}>
-            <MessageSquarePlus size={24} />
+          <button className="icon-button" onClick={() => setShowContacts(true)} aria-label="New chat">
+            <MessageSquarePlus size={22} />
           </button>
         </div>
 
         <div className="chat-list">
           {chats.length === 0 ? (
             <div className="empty-state">
-              <p>No active sessions.</p>
+              <Shield size={48} style={{ opacity: 0.2, marginBottom: 16 }} />
+              <p>No active sessions</p>
+              <p style={{ fontSize: 12, marginTop: 4 }}>Start a secure conversation</p>
               <button className="primary-btn" onClick={() => setShowContacts(true)}>
-                Start a Secure Chat
+                New Encrypted Chat
               </button>
             </div>
           ) : (
@@ -128,7 +136,7 @@ export default function Inbox() {
                       )}
                     </div>
                     <p className="last-message">
-                      {chat.lastMessageSender === username ? 'You: ' : ''}{displayLastMessage}
+                      {chat.lastMessageSender === username ? 'You: ' : ''}{displayLastMessage || 'Start chatting…'}
                     </p>
                   </div>
                 </div>
@@ -139,20 +147,20 @@ export default function Inbox() {
 
         <div className="sidebar-footer">
           <button className="logout-btn" onClick={logout}>
-            <LogOut size={18} /> Disconnect
+            <LogOut size={16} /> Disconnect
           </button>
         </div>
       </div>
 
-      {/* Main Content Area (Desktop only preview) */}
+      {/* Main Content Area (Desktop only) */}
       <div className="main-content hidden-mobile">
         <div className="welcome-screen">
           <div className="orb orb-1"></div>
           <div className="orb orb-2"></div>
           <div className="glass-panel welcome-card glowing-border">
             <h1>MSG Secure Network</h1>
-            <p>End-to-end encrypted messaging node.</p>
-            <p>Select a chat to begin.</p>
+            <p>End-to-end encrypted messaging</p>
+            <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>Select a conversation to begin</p>
           </div>
         </div>
       </div>

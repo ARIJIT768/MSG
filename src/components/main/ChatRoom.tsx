@@ -26,8 +26,8 @@ const encryptMessage = (message: string, sharedKey: string) => {
 const decryptMessage = (ciphertext: string, sharedKey: string) => {
   try {
     const bytes = CryptoJS.AES.decrypt(ciphertext, sharedKey);
-    return bytes.toString(CryptoJS.enc.Utf8);
-  } catch (e) {
+    return bytes.toString(CryptoJS.enc.Utf8) || 'Decryption Error';
+  } catch {
     return 'Decryption Error';
   }
 };
@@ -40,6 +40,7 @@ export default function ChatRoom() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [partnerPic, setPartnerPic] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
   
   const sharedKey = getSharedKey(username, partnerUsername || '');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -51,9 +52,13 @@ export default function ChatRoom() {
   useEffect(() => {
     if (!partnerUsername) return;
     const fetchPartner = async () => {
-      const snap = await getDoc(doc(db, 'users', partnerUsername));
-      if (snap.exists()) {
-        setPartnerPic(snap.data().profilePicUrl);
+      try {
+        const snap = await getDoc(doc(db, 'users', partnerUsername));
+        if (snap.exists()) {
+          setPartnerPic(snap.data().profilePicUrl || null);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch partner profile:', err);
       }
     };
     fetchPartner();
@@ -77,6 +82,8 @@ export default function ChatRoom() {
         });
       });
       setMessages(msgs);
+    }, (err) => {
+      console.warn('Message listener error:', err);
     });
     
     return () => unsubscribe();
@@ -84,10 +91,12 @@ export default function ChatRoom() {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !chatId) return;
+    if (!newMessage.trim() || !chatId || isSending) return;
     
-    const encryptedText = encryptMessage(newMessage.trim(), sharedKey);
+    const messageText = newMessage.trim();
+    const encryptedText = encryptMessage(messageText, sharedKey);
     setNewMessage('');
+    setIsSending(true);
     
     try {
       const messagesRef = collection(db, 'chats', chatId, 'messages');
@@ -105,15 +114,18 @@ export default function ChatRoom() {
       });
     } catch (e) {
       console.error("Failed to send message", e);
+      setNewMessage(messageText); // Restore message on failure
+    } finally {
+      setIsSending(false);
     }
   };
 
   return (
     <div className="main-layout chat-layout">
-      {/* Mobile Back Button / Header */}
+      {/* Header */}
       <div className="chat-header glass-panel">
-        <button className="icon-button back-btn" onClick={() => navigate('/inbox')}>
-          <ArrowLeft size={24} />
+        <button className="icon-button back-btn" onClick={() => navigate('/inbox')} aria-label="Back">
+          <ArrowLeft size={22} />
         </button>
         <div className="chat-partner-info">
           <div className="avatar small-avatar">
@@ -126,8 +138,8 @@ export default function ChatRoom() {
           <div className="header-text">
             <h2>{partnerUsername}</h2>
             <div className="encryption-badge">
-              <Shield size={12} className="shield-icon" />
-              <span>AES End-to-End Encrypted</span>
+              <Shield size={10} className="shield-icon" />
+              <span>AES-256 Encrypted</span>
             </div>
           </div>
         </div>
@@ -135,6 +147,13 @@ export default function ChatRoom() {
 
       {/* Messages */}
       <div className="messages-container">
+        {messages.length === 0 && (
+          <div className="empty-state" style={{ padding: 40 }}>
+            <Shield size={40} style={{ opacity: 0.15, marginBottom: 12 }} />
+            <p style={{ fontSize: 13 }}>Messages are end-to-end encrypted</p>
+            <p style={{ fontSize: 11, marginTop: 4 }}>Say hello to start the conversation</p>
+          </div>
+        )}
         {messages.map((msg) => {
           const isMine = msg.senderId === username;
           return (
@@ -142,7 +161,9 @@ export default function ChatRoom() {
               <div className={`message-bubble ${isMine ? 'my-bubble' : 'their-bubble'}`}>
                 <p>{msg.text}</p>
                 <span className="message-time">
-                  {msg.createdAt?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {msg.createdAt?.toDate?.()
+                    ? msg.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : '…'}
                 </span>
               </div>
             </div>
@@ -159,10 +180,11 @@ export default function ChatRoom() {
             className="chat-input"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type an encrypted message..."
+            placeholder="Type a message…"
+            autoComplete="off"
           />
-          <button type="submit" className="send-btn" disabled={!newMessage.trim()}>
-            <Send size={20} />
+          <button type="submit" className="send-btn" disabled={!newMessage.trim() || isSending} aria-label="Send">
+            <Send size={18} />
           </button>
         </form>
       </div>

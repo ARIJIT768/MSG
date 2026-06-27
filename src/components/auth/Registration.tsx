@@ -36,13 +36,11 @@ export default function Registration() {
     setIsUploading(true);
     let downloadURL: string | undefined = undefined;
     
-    // Upload PFP with a 10-second timeout — phones on mobile data can be slow
     if (pfpFile) {
       try {
         const filename = `pfp_${username}_${Date.now()}`;
         const storageRef = ref(storage, `pfps/${filename}`);
         
-        // Race: upload vs 10s timeout
         const uploadPromise = uploadBytes(storageRef, pfpFile).then(snap => getDownloadURL(snap.ref));
         const timeoutPromise = new Promise<never>((_, reject) => 
           setTimeout(() => reject(new Error('Upload timed out')), 10000)
@@ -51,11 +49,9 @@ export default function Registration() {
         downloadURL = await Promise.race([uploadPromise, timeoutPromise]);
       } catch (e: any) {
         console.warn("PFP upload failed, continuing without it:", e?.message);
-        // Don't block registration — just skip the PFP
       }
     }
     
-    // Register — this is now instant (no more hanging on Firebase)
     try {
       await register(username, pin, downloadURL);
       navigate('/');
@@ -69,15 +65,17 @@ export default function Registration() {
 
   return (
     <div className="auth-container">
-      {/* Animated Orbs */}
       <div className="orb orb-1"></div>
       <div className="orb orb-2"></div>
+      <div className="orb orb-3"></div>
 
       <div className="glass-panel glowing-border auth-card">
         <div className="auth-header">
-          <Fingerprint size={48} className="auth-icon" />
+          <div className="auth-icon-wrap">
+            <Fingerprint size={32} className="auth-icon" />
+          </div>
           <h1 className="auth-title">Initialize Identity</h1>
-          <p className="auth-subtitle">Create your highly encrypted node</p>
+          <p className="auth-subtitle">Create your encrypted node</p>
         </div>
 
         <form onSubmit={handleRegister} className="auth-form">
@@ -94,39 +92,42 @@ export default function Registration() {
                 <img src={pfpPreview} alt="Preview" className="pfp-image" />
               ) : (
                 <div className="pfp-placeholder">
-                  <Camera size={32} />
-                  <span>Upload Avatar</span>
+                  <Camera size={28} />
+                  <span>Avatar</span>
                 </div>
               )}
             </label>
           </div>
 
           <div className="input-group">
-            <User size={20} className="input-icon" />
+            <User size={18} className="input-icon" />
             <input 
               type="text" 
-              placeholder="Username (e.g. Neo)" 
+              placeholder="Username" 
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
+              autoComplete="off"
             />
           </div>
 
           <div className="input-group">
-            <Key size={20} className="input-icon" />
+            <Key size={18} className="input-icon" />
             <input 
               type="password" 
-              placeholder="6-Digit Master PIN" 
+              placeholder="6-Digit PIN" 
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
               required
               maxLength={6}
+              inputMode="numeric"
               pattern="\d{6}"
+              autoComplete="off"
             />
           </div>
 
           <button type="submit" className="auth-button" disabled={isUploading}>
-            {isUploading ? <Loader2 className="spinner" /> : 'Encrypt & Join'}
+            {isUploading ? <Loader2 size={20} className="spinner" /> : 'Encrypt & Join'}
           </button>
         </form>
       </div>
