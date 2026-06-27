@@ -667,6 +667,228 @@
   }
 }
 
+/* ---- Media in Messages ---- */
+.media-content {
+  margin: -6px -6px 6px -6px;
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+}
+
+.media-image {
+  width: 100%;
+  max-width: 320px;
+  max-height: 400px;
+  object-fit: cover;
+  display: block;
+  border-radius: 14px;
+  transition: transform var(--transition-normal);
+}
+
+.media-image:hover {
+  transform: scale(1.02);
+}
+
+.media-video {
+  width: 100%;
+  max-width: 320px;
+  max-height: 400px;
+  display: block;
+  border-radius: 14px;
+  background: #000;
+}
+
+/* Bubble adjustments when containing media */
+.message-bubble:has(.media-content) {
+  padding: 6px;
+  max-width: 85%;
+}
+
+.message-bubble:has(.media-content) p {
+  padding: 4px 8px 0;
+}
+
+.message-bubble:has(.media-content) .message-time {
+  padding-right: 8px;
+}
+
+/* ---- Attach Button ---- */
+.attach-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 8px;
+  margin-right: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-normal);
+  flex-shrink: 0;
+}
+
+.attach-btn:hover {
+  color: var(--primary-light);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.attach-btn:active {
+  transform: scale(0.9);
+}
+
+/* ---- Media Preview Bar ---- */
+.media-preview-bar {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-subtle);
+  gap: 12px;
+  animation: slideUp 0.25s var(--ease-out-expo) both;
+  z-index: 10;
+}
+
+.media-preview-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid var(--border-default);
+}
+
+.media-preview-thumb img,
+.media-preview-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.media-preview-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.media-preview-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.media-preview-name {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-preview-close {
+  flex-shrink: 0;
+}
+
+/* ---- Upload Progress ---- */
+.upload-progress-bar {
+  display: flex;
+  align-items: center;
+  padding: 8px 20px;
+  gap: 12px;
+  background: rgba(99, 102, 241, 0.06);
+  border-top: 1px solid var(--border-subtle);
+  z-index: 10;
+  animation: fadeIn 0.2s ease both;
+}
+
+.upload-progress-bar span {
+  font-size: 12px;
+  color: var(--primary-light);
+  font-weight: 600;
+}
+
+.upload-progress-inner {
+  width: 100%;
+  max-width: 200px;
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(99, 102, 241, 0.15);
+  overflow: hidden;
+  position: relative;
+}
+
+.upload-progress-inner::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 40%;
+  background: var(--gradient-primary);
+  border-radius: 3px;
+  animation: shimmer 1.2s infinite linear;
+}
+
+/* ---- Lightbox (Fullscreen Image View) ---- */
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 200;
+  animation: fadeIn 0.2s ease both;
+  cursor: zoom-out;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: white;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  z-index: 201;
+}
+
+.lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.lightbox-image {
+  max-width: 92vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  cursor: default;
+  animation: fadeSlideIn 0.3s var(--ease-out-expo) both;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 768px) {
+  .hidden-mobile {
+    display: none;
+  }
+  .sidebar {
+    max-width: 100%;
+    border-right: none;
+  }
+}
+
 @media (max-width: 380px) {
   .auth-card {
     padding: 32px 24px;
@@ -688,3 +910,4 @@
     padding-top: max(14px, env(safe-area-inset-top, 14px));
   }
 }
+
