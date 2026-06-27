@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { io } from 'socket.io-client';
 
-const API_URL = 'http://localhost:3001/api';
-const SOCKET_URL = 'http://localhost:3001';
+const API_URL = 'http://10.197.91.148:3001/api';
+const SOCKET_URL = 'http://10.197.91.148:3001';
 
 // Configure Axios
 export const api = axios.create({
