@@ -1,15 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { storage } from '../../config/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Camera, User, Key, Loader2, Fingerprint } from 'lucide-react';
 import './Auth.css';
 
 export default function Registration() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  
+
   const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
   const [pfpFile, setPfpFile] = useState<File | null>(null);
@@ -21,7 +19,7 @@ export default function Registration() {
       const file = e.target.files[0];
       setPfpFile(file);
       const reader = new FileReader();
-      reader.onload = (e) => setPfpPreview(e.target?.result as string);
+      reader.onload = (event) => setPfpPreview(event.target?.result as string);
       reader.readAsDataURL(file);
     }
   };
@@ -34,30 +32,17 @@ export default function Registration() {
     }
 
     setIsUploading(true);
-    let downloadURL: string | undefined = undefined;
-    
-    if (pfpFile) {
-      try {
-        const filename = `pfp_${username}_${Date.now()}`;
-        const storageRef = ref(storage, `pfps/${filename}`);
-        
-        const uploadPromise = uploadBytes(storageRef, pfpFile).then(snap => getDownloadURL(snap.ref));
-        const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Upload timed out')), 10000)
-        );
-        
-        downloadURL = await Promise.race([uploadPromise, timeoutPromise]);
-      } catch (e: any) {
-        console.warn("PFP upload failed, continuing without it:", e?.message);
-      }
-    }
     
     try {
-      await register(username, pin, downloadURL);
-      navigate('/');
+      const success = await register(username, pin, pfpFile);
+      if (success) {
+        navigate('/');
+      } else {
+        alert('Registration failed. Username might be taken.');
+      }
     } catch (e) {
-      console.error("Registration failed:", e);
-      alert("Registration failed. Please try again.");
+      console.error('Registration failed:', e);
+      alert('Registration failed. Please try again.');
     } finally {
       setIsUploading(false);
     }
@@ -80,10 +65,10 @@ export default function Registration() {
 
         <form onSubmit={handleRegister} className="auth-form">
           <div className="pfp-upload-container">
-            <input 
-              type="file" 
-              id="pfp-upload" 
-              accept="image/*" 
+            <input
+              type="file"
+              id="pfp-upload"
+              accept="image/*"
               onChange={handleImageSelect}
               style={{ display: 'none' }}
             />
@@ -101,9 +86,9 @@ export default function Registration() {
 
           <div className="input-group">
             <User size={18} className="input-icon" />
-            <input 
-              type="text" 
-              placeholder="Username" 
+            <input
+              type="text"
+              placeholder="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
@@ -113,9 +98,9 @@ export default function Registration() {
 
           <div className="input-group">
             <Key size={18} className="input-icon" />
-            <input 
-              type="password" 
-              placeholder="6-Digit PIN" 
+            <input
+              type="password"
+              placeholder="6-Digit PIN"
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
               required

@@ -1,117 +1,127 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { api, socket } from '../config/api';
 
 type AuthContextType = {
+  username: string | null;
+  profilePicUrl: string | null;
   isRegistered: boolean;
   isAuthenticated: boolean;
-  username: string;
-  profilePicUrl: string | null;
   login: (pin: string) => Promise<boolean>;
-  register: (username: string, pin: string, profilePicUri?: string) => Promise<void>;
+  register: (username: string, pin: string, file?: File | null) => Promise<boolean>;
   logout: () => void;
   resetAllData: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | null>(null);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isRegistered, setIsRegistered] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [username, setUsername] = useState('');
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [username, setUsername] = useState<string | null>(null);
   const [profilePicUrl, setProfilePicUrl] = useState<string | null>(null);
+  const [isRegistered, setIsRegistered] = useState<boolean>(!!localStorage.getItem('msg_username'));
+
+  const isAuthenticated = !!username;
 
   useEffect(() => {
-    const checkRegistration = () => {
-      try {
-        const storedPin = localStorage.getItem('user_pin');
-        const storedName = localStorage.getItem('user_name');
-        const storedPic = localStorage.getItem('user_pic');
-        if (storedPin) {
-          setIsRegistered(true);
-          if (storedName) setUsername(storedName);
-          if (storedPic) setProfilePicUrl(storedPic);
-        }
-      } catch (e) {
-        console.error('Failed to check registration status', e);
-      }
-    };
-    checkRegistration();
+    // We don't auto-login anymore; user MUST enter PIN every session
+    // So we don't set username here, unless we want to bypass PIN.
+    // For maximum security, we require PIN.
+    // We just check if they are registered.
+    const storedUser = localStorage.getItem('msg_username');
+    if (storedUser) {
+      setIsRegistered(true);
+    }
+
+    return () => {
+      socket.disconnect();
+    }
   }, []);
 
   const login = async (pin: string) => {
     try {
-      const storedPin = localStorage.getItem('user_pin');
-      const storedName = localStorage.getItem('user_name');
-      const storedPic = localStorage.getItem('user_pic');
-      if (storedPin === pin) {
-        if (storedName) setUsername(storedName);
-        if (storedPic) setProfilePicUrl(storedPic);
-        setIsAuthenticated(true);
+      const storedUser = localStorage.getItem('msg_username');
+      if (!storedUser) return false;
+      
+      const res = await api.post('/auth/login', { username: storedUser, pin });
+      if (res.data.success) {
+        setUsername(res.data.user.username);
+        if (res.data.user.profilePicUrl) {
+          setProfilePicUrl(res.data.user.profilePicUrl);
+          localStorage.setItem('msg_profilePic', res.data.user.profilePicUrl);
+        }
+        socket.connect();
         return true;
       }
       return false;
     } catch (e) {
-      console.error('Failed to login', e);
+      console.error('Login error:', e);
       return false;
     }
   };
 
-  const register = async (username: string, pin: string, profilePicUri?: string) => {
-    // Step 1: Save locally FIRST — this is instant and never fails
-    localStorage.setItem('user_pin', pin);
-    localStorage.setItem('user_name', username);
-    if (profilePicUri) {
-      localStorage.setItem('user_pic', profilePicUri);
-    }
-    
-    // Step 2: Update React state immediately — user is now "logged in"
-    setUsername(username);
-    if (profilePicUri) setProfilePicUrl(profilePicUri);
-    setIsRegistered(true);
-    setIsAuthenticated(true);
+  const register = async (newUsername: string, pin: string, file?: File | null) => {
+    try {
+      let pfpUrl = null;
 
-    // Step 3: Sync to Firestore in background — FIRE AND FORGET, no await!
-    // This ensures the user is never stuck waiting for Firebase
-    setDoc(doc(db, 'users', username), {
-      username,
-      profilePicUrl: profilePicUri || null,
-      registeredAt: new Date().toISOString()
-    }, { merge: true }).catch((dbError) => {
-      console.warn('Firestore user sync failed (will retry on next app open):', dbError);
-    });
+      if (file) {
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          const uploadRes = await api.post('/media/upload', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          pfpUrl = uploadRes.data.url;
+        } catch (uploadErr) {
+          console.warn("PFP upload failed, continuing without it:", uploadErr);
+        }
+      }
+
+      const res = await api.post('/auth/register', { 
+        username: newUsername, 
+        pin, 
+        profilePicUrl: pfpUrl 
+      });
+
+      if (res.data.success) {
+        localStorage.setItem('msg_username', res.data.user.username);
+        setIsRegistered(true);
+        setUsername(res.data.user.username);
+        if (res.data.user.profilePicUrl) {
+          localStorage.setItem('msg_profilePic', res.data.user.profilePicUrl);
+          setProfilePicUrl(res.data.user.profilePicUrl);
+        }
+        socket.connect();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Registration failed:', e);
+      return false;
+    }
   };
 
   const logout = () => {
-    setIsAuthenticated(false);
+    socket.disconnect();
+    setUsername(null); // Just clear the session (locks the app)
   };
 
   const resetAllData = async () => {
-    try {
-      localStorage.removeItem('user_pin');
-      localStorage.removeItem('user_name');
-      localStorage.removeItem('user_pic');
-      localStorage.removeItem('user_theme');
-      setIsRegistered(false);
-      setIsAuthenticated(false);
-      setUsername('');
-      setProfilePicUrl(null);
-    } catch (e) {
-      console.error('Failed to reset app data', e);
-    }
+    localStorage.removeItem('msg_username');
+    localStorage.removeItem('msg_profilePic');
+    socket.disconnect();
+    setUsername(null);
+    setProfilePicUrl(null);
+    setIsRegistered(false);
   };
 
   return (
-    <AuthContext.Provider value={{ isRegistered, isAuthenticated, username, profilePicUrl, login, register, logout, resetAllData }}>
+    <AuthContext.Provider value={{ username, profilePicUrl, isRegistered, isAuthenticated, login, register, logout, resetAllData }}>
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 };

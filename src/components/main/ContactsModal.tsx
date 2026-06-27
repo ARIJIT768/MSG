@@ -1,13 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { api } from '../../config/api';
 import { X, MessageCircle } from 'lucide-react';
-import { db } from '../../config/firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import './Main.css';
 
 type UserProfile = {
   username: string;
-  profilePicUrl?: string;
+  profilePicUrl?: string | null;
 };
 
 type Props = {
@@ -20,26 +19,17 @@ export default function ContactsModal({ onClose, profiles }: Props) {
   const navigate = useNavigate();
 
   const startChat = async (partnerUsername: string) => {
+    if (!username) return;
     try {
       const sortedUsers = [username, partnerUsername].sort();
-      const chatId = `${sortedUsers[0]}_${sortedUsers[1]}`;
-      const chatRef = doc(db, 'chats', chatId);
-      
-      const chatDoc = await getDoc(chatRef);
-      if (!chatDoc.exists()) {
-        await setDoc(chatRef, {
-          participants: sortedUsers,
-          createdAt: serverTimestamp(),
-          lastMessage: null,
-          lastMessageSender: null,
-          lastMessageTime: null,
-        });
-      }
+      // Call our Express API to create the chat
+      const res = await api.post('/chats', { participants: sortedUsers });
+      const chatId = res.data.id;
       
       onClose();
       navigate(`/chat/${chatId}/${partnerUsername}`);
     } catch (e) {
-      console.error("Failed to start chat", e);
+      console.error('Failed to start chat', e);
     }
   };
 
@@ -52,14 +42,14 @@ export default function ContactsModal({ onClose, profiles }: Props) {
           <h2>Select Node</h2>
           <button onClick={onClose} className="icon-button"><X size={24} /></button>
         </div>
-        
+
         <div className="contact-list">
           {contactList.length === 0 ? (
             <p className="empty-state">No other nodes active.</p>
           ) : (
             contactList.map(contact => (
-              <div 
-                key={contact.username} 
+              <div
+                key={contact.username}
                 className="contact-item glass-panel"
                 onClick={() => startChat(contact.username)}
               >

@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { db } from '../../config/firebase';
-import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
+import { api, socket } from '../../config/api';
 import CryptoJS from 'crypto-js';
 import { MessageSquarePlus, LogOut, Shield } from 'lucide-react';
 import ContactsModal from './ContactsModal';
@@ -27,63 +26,55 @@ type ChatRoom = {
   participants: string[];
   lastMessage: string | null;
   lastMessageSender: string | null;
-  lastMessageTime: any;
+  lastMessageTime: string | null;
 };
 
 type UserProfile = {
   username: string;
-  profilePicUrl?: string;
+  profilePicUrl?: string | null;
 };
 
 export default function Inbox() {
   const { username, logout } = useAuth();
   const navigate = useNavigate();
-  
+
   const [chats, setChats] = useState<ChatRoom[]>([]);
   const [profiles, setProfiles] = useState<Record<string, UserProfile>>({});
   const [showContacts, setShowContacts] = useState(false);
 
-  useEffect(() => {
+  const fetchInboxData = async () => {
     if (!username) return;
+    try {
+      const [usersRes, chatsRes] = await Promise.all([
+        api.get('/auth/users'),
+        api.get(`/chats/${username}`)
+      ]);
 
-    const fetchProfiles = async () => {
-      try {
-        const snap = await getDocs(collection(db, 'users'));
-        const profs: Record<string, UserProfile> = {};
-        snap.forEach(d => {
-          profs[d.id] = d.data() as UserProfile;
-        });
-        setProfiles(profs);
-      } catch (err) {
-        console.warn('Failed to fetch profiles:', err);
-      }
-    };
-    fetchProfiles();
+      const profileMap: Record<string, UserProfile> = {};
+      usersRes.data.forEach((user: any) => {
+        profileMap[user.username] = user;
+      });
+      setProfiles(profileMap);
+      setChats(chatsRes.data);
+    } catch (err) {
+      console.warn('Failed to load inbox data:', err);
+    }
+  };
 
-    const q = query(collection(db, 'chats'), where('participants', 'array-contains', username));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const chatList: ChatRoom[] = [];
-      snapshot.forEach(doc => {
-        chatList.push({ id: doc.id, ...doc.data() } as ChatRoom);
-      });
-      
-      chatList.sort((a, b) => {
-        if (!a.lastMessageTime) return 1;
-        if (!b.lastMessageTime) return -1;
-        return b.lastMessageTime.toMillis() - a.lastMessageTime.toMillis();
-      });
-      
-      setChats(chatList);
-    }, (err) => {
-      console.warn('Chat listener error:', err);
+  useEffect(() => {
+    fetchInboxData();
+
+    socket.on('chat-updated', () => {
+      fetchInboxData();
     });
 
-    return () => unsubscribe();
+    return () => {
+      socket.off('chat-updated');
+    };
   }, [username]);
 
   return (
     <div className="main-layout">
-      {/* Sidebar */}
       <div className="sidebar glass-panel">
         <div className="sidebar-header">
           <h2>Inbox <span className="badge">{chats.length}</span></h2>
@@ -107,15 +98,15 @@ export default function Inbox() {
               const partnerUsername = chat.participants.find(p => p !== username) || 'Unknown';
               const partnerProfile = profiles[partnerUsername];
               let displayLastMessage = chat.lastMessage || '';
-              
+
               if (chat.lastMessage) {
-                const sharedKey = getSharedKey(username, partnerUsername);
+                const sharedKey = getSharedKey(username || '', partnerUsername);
                 displayLastMessage = decryptMessage(chat.lastMessage, sharedKey);
               }
 
               return (
-                <div 
-                  key={chat.id} 
+                <div
+                  key={chat.id}
                   className="chat-item"
                   onClick={() => navigate(`/chat/${chat.id}/${partnerUsername}`)}
                 >
@@ -131,7 +122,7 @@ export default function Inbox() {
                       <h3>{partnerUsername}</h3>
                       {chat.lastMessageTime && (
                         <span className="time">
-                          {chat.lastMessageTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(chat.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       )}
                     </div>
@@ -152,7 +143,6 @@ export default function Inbox() {
         </div>
       </div>
 
-      {/* Main Content Area (Desktop only) */}
       <div className="main-content hidden-mobile">
         <div className="welcome-screen">
           <div className="orb orb-1"></div>
