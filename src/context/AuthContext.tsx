@@ -58,32 +58,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const register = async (username: string, pin: string, profilePicUri?: string) => {
-    try {
-      localStorage.setItem('user_pin', pin);
-      localStorage.setItem('user_name', username);
-      if (profilePicUri) {
-        localStorage.setItem('user_pic', profilePicUri);
-      }
-      
-      setUsername(username);
-      if (profilePicUri) setProfilePicUrl(profilePicUri);
-      setIsRegistered(true);
-      setIsAuthenticated(true);
-
-      // Save to global Firestore registry (non-blocking)
-      try {
-        await setDoc(doc(db, 'users', username), {
-          username,
-          profilePicUrl: profilePicUri || null,
-          registeredAt: new Date().toISOString()
-        }, { merge: true });
-      } catch (dbError) {
-        console.error('Firestore user sync failed (Check Firebase Rules):', dbError);
-      }
-    } catch (e) {
-      console.error('Failed to register locally', e);
-      throw e;
+    // Step 1: Save locally FIRST — this is instant and never fails
+    localStorage.setItem('user_pin', pin);
+    localStorage.setItem('user_name', username);
+    if (profilePicUri) {
+      localStorage.setItem('user_pic', profilePicUri);
     }
+    
+    // Step 2: Update React state immediately — user is now "logged in"
+    setUsername(username);
+    if (profilePicUri) setProfilePicUrl(profilePicUri);
+    setIsRegistered(true);
+    setIsAuthenticated(true);
+
+    // Step 3: Sync to Firestore in background — FIRE AND FORGET, no await!
+    // This ensures the user is never stuck waiting for Firebase
+    setDoc(doc(db, 'users', username), {
+      username,
+      profilePicUrl: profilePicUri || null,
+      registeredAt: new Date().toISOString()
+    }, { merge: true }).catch((dbError) => {
+      console.warn('Firestore user sync failed (will retry on next app open):', dbError);
+    });
   };
 
   const logout = () => {

@@ -28,39 +28,42 @@ export default function Registration() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (username.trim() && pin.length === 6) {
-      let downloadURL = undefined;
-      
-      if (pfpFile) {
-        try {
-          setIsUploading(true);
-          const filename = `pfp_${username}_${Date.now()}`;
-          const storageRef = ref(storage, `pfps/${filename}`);
-          
-          const snapshot = await uploadBytes(storageRef, pfpFile);
-          downloadURL = await getDownloadURL(snapshot.ref);
-        } catch (e: any) {
-          console.error("Failed to upload PFP", e);
-          if (e.message && e.message.includes('unauthorized')) {
-             alert("Firebase Storage Rules error! You need to allow read/write in your Firebase Console. Continuing without a profile picture for now.");
-          } else {
-             alert("Failed to upload profile picture. Try again without one.");
-             setIsUploading(false);
-             return;
-          }
-        }
-      }
-      
-      try {
-        await register(username, pin, downloadURL);
-        navigate('/');
-      } catch (e) {
-        console.error("Failed to register", e);
-      } finally {
-        setIsUploading(false);
-      }
-    } else {
+    if (!username.trim() || pin.length !== 6) {
       alert('Please enter a valid username and a 6-digit PIN.');
+      return;
+    }
+
+    setIsUploading(true);
+    let downloadURL: string | undefined = undefined;
+    
+    // Upload PFP with a 10-second timeout — phones on mobile data can be slow
+    if (pfpFile) {
+      try {
+        const filename = `pfp_${username}_${Date.now()}`;
+        const storageRef = ref(storage, `pfps/${filename}`);
+        
+        // Race: upload vs 10s timeout
+        const uploadPromise = uploadBytes(storageRef, pfpFile).then(snap => getDownloadURL(snap.ref));
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Upload timed out')), 10000)
+        );
+        
+        downloadURL = await Promise.race([uploadPromise, timeoutPromise]);
+      } catch (e: any) {
+        console.warn("PFP upload failed, continuing without it:", e?.message);
+        // Don't block registration — just skip the PFP
+      }
+    }
+    
+    // Register — this is now instant (no more hanging on Firebase)
+    try {
+      await register(username, pin, downloadURL);
+      navigate('/');
+    } catch (e) {
+      console.error("Registration failed:", e);
+      alert("Registration failed. Please try again.");
+    } finally {
+      setIsUploading(false);
     }
   };
 
