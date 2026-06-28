@@ -11,6 +11,7 @@ type Message = {
   id: string;
   senderId: string;
   text: string;
+  mediaUrl?: string;
   mediaType?: 'image' | 'video';
   replyTo?: string | null;
   status?: 'sent' | 'delivered' | 'read';

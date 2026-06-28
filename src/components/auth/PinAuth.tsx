@@ -18,7 +18,8 @@ export default function PinAuth() {
     
     setIsLoading(true);
     try {
-      const success = await login(pin);
+      const storedUser = localStorage.getItem('msg_username') || '';
+      const success = await login(storedUser, pin);
       if (success) {
         navigate('/inbox');
       } else {
