@@ -135,9 +135,10 @@ export default function Inbox() {
   const fetchInboxData = async () => {
     if (!username) return;
     try {
-      const [usersRes, chatsRes] = await Promise.all([
+      const [usersRes, chatsRes, statusRes] = await Promise.all([
         api.get('/auth/users'),
-        api.get(`/chats/${username}`)
+        api.get(`/chats/${username}`),
+        api.get(`/status/${username}`)
       ]);
 
       const profileMap: Record<string, UserProfile> = {};
@@ -146,6 +147,7 @@ export default function Inbox() {
       });
       setProfiles(profileMap);
       setChats(chatsRes.data);
+      setStatuses(statusRes.data);
     } catch (err) {
       console.warn('Failed to load inbox data:', err);
     }

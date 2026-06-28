@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { api, socket } from '../../config/api';
 import CryptoJS from 'crypto-js';
-import { ArrowLeft, Send, Shield, Paperclip, X, Loader2, Reply, Check, CheckCheck, Phone, PhoneOff, PhoneCall } from 'lucide-react';
+import { ArrowLeft, Send, Shield, Paperclip, X, Loader2, Reply, Check, CheckCheck, Phone, PhoneOff, PhoneCall, Mic } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import './Main.css';
 
@@ -12,7 +12,7 @@ type Message = {
   senderId: string;
   text: string;
   mediaUrl?: string;
-  mediaType?: 'image' | 'video';
+  mediaType?: 'image' | 'video' | 'audio';
   replyTo?: string | null;
   status?: 'sent' | 'delivered' | 'read';
   reactions?: Record<string, string>;
@@ -77,6 +77,15 @@ export default function ChatRoom() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pressTimer = useRef<any>(null);
+  
+  // Typing state
+  const [isPartnerTyping, setIsPartnerTyping] = useState(false);
+  const typingTimeoutRef = useRef<any>(null);
+
+  // Voice Note state
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const handlePressStart = (msgId: string) => {
     pressTimer.current = setTimeout(() => {
@@ -193,6 +202,15 @@ export default function ChatRoom() {
       }
     });
 
+    // Listen for typing
+    socket.on('user-typing', ({ typer }) => {
+      if (typer === partnerUsername) setIsPartnerTyping(true);
+    });
+
+    socket.on('user-stop-typing', ({ typer }) => {
+      if (typer === partnerUsername) setIsPartnerTyping(false);
+    });
+
     // --- WebRTC Listeners ---
     socket.on('call-made', async (data) => {
       setIncomingCall({ caller: data.caller, offer: data.offer });
@@ -231,6 +249,8 @@ export default function ChatRoom() {
       socket.off('answer-made');
       socket.off('ice-candidate-received');
       socket.off('call-ended');
+      socket.off('user-typing');
+      socket.off('user-stop-typing');
     };
   }, [chatId, sharedKey, partnerUsername]);
 
@@ -426,6 +446,92 @@ export default function ChatRoom() {
     }
   };
 
+  const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewMessage(e.target.value);
+    
+    if (chatId) {
+      socket.emit('typing', { chatId, typer: username });
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      
+      typingTimeoutRef.current = setTimeout(() => {
+        socket.emit('stop-typing', { chatId, typer: username });
+      }, 2000);
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        
+        setIsSending(true);
+        const formData = new FormData();
+        formData.append('file', audioBlob, 'voice_note.webm');
+        try {
+          const res = await api.post('/media/upload', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          
+          const audioUrl = res.data.fileUrl;
+          const tempId = Date.now().toString();
+          const encryptedText = encryptMessage('🎤 Voice Note', sharedKey);
+          
+          socket.emit('send-message', {
+            id: tempId,
+            chatId,
+            senderId: username,
+            text: encryptedText,
+            mediaUrl: audioUrl,
+            mediaType: 'audio',
+            replyTo: replyToMsgId
+          });
+          
+          setMessages(prev => [...prev, {
+            id: tempId,
+            senderId: username!,
+            text: '🎤 Voice Note',
+            mediaUrl: audioUrl,
+            mediaType: 'audio',
+            status: 'sent',
+            replyTo: replyToMsgId,
+            createdAt: new Date().toISOString()
+          }]);
+          
+          setReplyToMsgId(null);
+        } catch(err) {
+          console.error("Audio send err", err);
+          alert("Failed to send voice note.");
+        } finally {
+          setIsSending(false);
+        }
+        
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecordingAudio(true);
+    } catch(err) {
+      console.error("Mic access denied", err);
+      alert("Microphone access is required for voice notes.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecordingAudio) {
+      mediaRecorderRef.current.stop();
+      setIsRecordingAudio(false);
+    }
+  };
+
   return (
     <div className="main-layout chat-layout">
       {/* Hidden Audio Elements for WebRTC */}
@@ -479,19 +585,14 @@ export default function ChatRoom() {
           </div>
           <div className="header-text">
             <h2>{partnerUsername}</h2>
-            {partnerOnline ? (
-              <div className="status-badge online">
-                <span className="dot"></span> Online
-              </div>
+            {isPartnerTyping ? (
+              <span className="typing-indicator">typing...</span>
+            ) : partnerOnline ? (
+              <span className="status-online">Online</span>
             ) : partnerLastSeen ? (
-              <div className="status-badge offline">
-                last seen at {new Date(partnerLastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </div>
+              <span className="status-offline">Last seen {new Date(partnerLastSeen).toLocaleString([], {hour: '2-digit', minute:'2-digit', month: 'short', day: 'numeric'})}</span>
             ) : (
-              <div className="encryption-badge">
-                <Shield size={10} className="shield-icon" />
-                <span>AES-256 Encrypted</span>
-              </div>
+              <span className="status-offline">Offline</span>
             )}
           </div>
         </div>
@@ -527,7 +628,7 @@ export default function ChatRoom() {
             <div key={msg.id} className={`message-wrapper ${isMine ? 'mine' : 'theirs'}`}>
               <div 
                 className={`message-bubble ${isMine ? 'my-bubble' : 'their-bubble'}`}
-                onContextMenu={(e) => e.preventDefault()}
+                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 onMouseDown={() => handlePressStart(msg.id)}
                 onMouseUp={handlePressEnd}
                 onMouseLeave={handlePressEnd}
@@ -595,7 +696,17 @@ export default function ChatRoom() {
                     />
                   </div>
                 )}
-                {msg.text && <p>{msg.text}</p>}
+                {msg.mediaUrl && msg.mediaType === 'audio' && (
+                  <div className="media-content audio-content" style={{ marginTop: msg.text ? '8px' : '0' }}>
+                    <audio
+                      src={msg.mediaUrl}
+                      controls
+                      preload="metadata"
+                      style={{ width: '220px', height: '40px' }}
+                    />
+                  </div>
+                )}
+                {msg.text && msg.mediaType !== 'audio' && <p>{msg.text}</p>}
                 
                 {(msg.reactions && Object.keys(msg.reactions).length > 0) && (
                   <div className={`reactions-container ${isMine ? 'reactions-mine' : 'reactions-theirs'}`}>
@@ -692,18 +803,33 @@ export default function ChatRoom() {
             type="text"
             className="chat-input"
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder={mediaFile ? 'Add a caption…' : 'Type a message…'}
+            onChange={handleTyping}
+            placeholder={isRecordingAudio ? 'Recording Audio...' : (mediaFile ? 'Add a caption…' : 'Type a message…')}
             autoComplete="off"
+            disabled={isRecordingAudio}
           />
-          <button
-            type="submit"
-            className="send-btn"
-            disabled={(!newMessage.trim() && !mediaFile) || isSending}
-            aria-label="Send"
-          >
-            {isSending ? <Loader2 size={18} className="spinner" /> : <Send size={18} />}
-          </button>
+          
+          {(newMessage.trim() === '' && !mediaFile) ? (
+            <button
+              type="button"
+              className={`send-btn mic-btn ${isRecordingAudio ? 'recording' : ''}`}
+              onPointerDown={startRecording}
+              onPointerUp={stopRecording}
+              onPointerLeave={stopRecording}
+              aria-label="Hold to record voice note"
+              style={{ background: isRecordingAudio ? 'var(--danger)' : 'var(--gradient-button)' }}
+            >
+              <Mic size={20} />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="send-btn"
+              disabled={isSending || (newMessage.trim() === '' && !mediaFile)}
+            >
+              {isSending ? <Loader2 size={20} className="spinner" /> : <Send size={20} />}
+            </button>
+          )}
         </form>
       </div>
 

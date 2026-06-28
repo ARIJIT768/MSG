@@ -31,7 +31,6 @@ function App() {
             url: downloadUrl,
             version: latestVersion
           });
-          
           localStorage.setItem('app_version', latestVersion);
           await CapacitorUpdater.set({ id: bundle.id });
         }
@@ -40,6 +39,12 @@ function App() {
       }
     };
     setupUpdater();
+  }, []);
+
+  // Global Theme Initialization
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('msg_theme') || '';
+    document.body.className = savedTheme;
   }, []);
 
   useEffect(() => {

@@ -219,6 +219,15 @@ io.on('connection', (socket) => {
     io.emit('status-viewed', data);
   });
 
+  // Handle typing indicators
+  socket.on('typing', ({ chatId, typer }) => {
+    socket.to(chatId).emit('user-typing', { chatId, typer });
+  });
+
+  socket.on('stop-typing', ({ chatId, typer }) => {
+    socket.to(chatId).emit('user-stop-typing', { chatId, typer });
+  });
+
   socket.on('disconnect', async () => {
     console.log(`User disconnected: ${socket.id}`);
     if (currentUsername) {
