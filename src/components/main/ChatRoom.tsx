@@ -223,7 +223,7 @@ export default function ChatRoom() {
 
     // --- WebRTC Listeners ---
     socket.on('call-made', async (data) => {
-      setIncomingCall({ caller: data.caller, offer: data.offer });
+      setIncomingCall({ caller: data.caller, offer: data.offer, type: data.type });
     });
 
     socket.on('answer-made', async (data) => {
@@ -276,20 +276,27 @@ export default function ChatRoom() {
     };
   }, [chatId, sharedKey, partnerUsername]);
 
-  const initWebRTC = async () => {
+  const initWebRTC = async (type: 'audio' | 'video') => {
     try {
       try {
         const perm = await Microphone.requestPermissions();
         if (perm.microphone !== 'granted') {
           console.warn('Native microphone permission denied');
         }
+        if (type === 'video') {
+          const camPerm = await Camera.requestPermissions();
+          if (camPerm.camera !== 'granted') {
+            console.warn('Native camera permission denied');
+          }
+        }
       } catch (e) {
         // Ignore on web
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' });
       localStream.current = stream;
       if (localAudioRef.current) localAudioRef.current.srcObject = stream;
+      if (type === 'video' && localVideoRef.current) localVideoRef.current.srcObject = stream;
 
       const pc = new RTCPeerConnection(rtcConfig);
       peerConnection.current = pc;
@@ -298,6 +305,7 @@ export default function ChatRoom() {
 
       pc.ontrack = (event) => {
         if (remoteAudioRef.current) remoteAudioRef.current.srcObject = event.streams[0];
+        if (type === 'video' && remoteVideoRef.current) remoteVideoRef.current.srcObject = event.streams[0];
       };
 
       pc.onicecandidate = (event) => {
@@ -308,26 +316,28 @@ export default function ChatRoom() {
 
       return pc;
     } catch (err) {
-      console.error('Failed to get local audio', err);
-      alert('Microphone access is required for voice calls.');
+      console.error('Failed to get local media', err);
+      alert('Microphone/Camera access is required for calls.');
       return null;
     }
   };
 
-  const startCall = async () => {
+  const startCall = async (type: 'audio' | 'video') => {
     setIsCalling(true);
-    const pc = await initWebRTC();
-    if (!pc) { setIsCalling(false); return; }
+    setCallType(type);
+    const pc = await initWebRTC(type);
+    if (!pc) { setIsCalling(false); setCallType(null); return; }
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
-    socket.emit('call-user', { offer, chatId, caller: username });
+    socket.emit('call-user', { offer, chatId, caller: username, type });
   };
 
   const acceptCall = async () => {
     if (!incomingCall) return;
-    const pc = await initWebRTC();
+    setCallType(incomingCall.type);
+    const pc = await initWebRTC(incomingCall.type);
     if (!pc) return;
 
     await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
@@ -614,8 +624,7 @@ export default function ChatRoom() {
   return (
     <div className="main-layout chat-layout">
       {/* Hidden Audio Elements for WebRTC */}
-      <audio ref={localAudioRef} autoPlay muted style={{ display: 'none' }} />
-      <audio ref={remoteAudioRef} autoPlay style={{ display: 'none' }} />
+
 
       {/* Incoming Call Modal */}
       {incomingCall && !inCall && (
@@ -632,9 +641,29 @@ export default function ChatRoom() {
           </div>
         </div>
       )}
+      <audio ref={localAudioRef} autoPlay muted style={{ display: 'none' }} />
+      <audio ref={remoteAudioRef} autoPlay style={{ display: 'none' }} />
+      
+      {/* Video Call Fullscreen Overlay */}
+      {(isCalling || inCall) && callType === 'video' && (
+        <div className="video-call-overlay">
+          <video ref={remoteVideoRef} autoPlay playsInline className="remote-video" />
+          <div className="local-video-container">
+            <video ref={localVideoRef} autoPlay muted playsInline className="local-video" />
+          </div>
+          <div className="video-call-controls">
+            <div className="call-status-text">
+              {inCall ? '' : `Calling ${partnerUsername}...`}
+            </div>
+            <button className="icon-button decline-btn huge" onClick={() => endCall(true)}>
+              <PhoneOff size={32} />
+            </button>
+          </div>
+        </div>
+      )}
 
-      {/* In-Call / Calling Overlay */}
-      {(isCalling || inCall) && (
+      {/* Audio In-Call / Calling Overlay */}
+      {(isCalling || inCall) && callType === 'audio' && (
         <div className="active-call-bar glass-panel">
           <div className="call-status">
             <Phone size={16} className={inCall ? "pulse-icon" : "pulse-icon-slow"} color={inCall ? "#10b981" : "#06b6d4"} />

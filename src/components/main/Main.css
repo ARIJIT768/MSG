@@ -1666,3 +1666,58 @@
   color: var(--text-primary);
   font-weight: 500;
 }
+
+/* ---- Video Call UI ---- */
+.video-call-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+}
+.remote-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.local-video-container {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 100px;
+  height: 150px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  border: 2px solid rgba(255,255,255,0.2);
+  z-index: 2001;
+}
+.local-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.video-call-controls {
+  position: absolute;
+  bottom: 40px;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  z-index: 2002;
+}
+.call-status-text {
+  color: white;
+  font-size: 16px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+}
+.decline-btn.huge {
+  width: 72px;
+  height: 72px;
+}
