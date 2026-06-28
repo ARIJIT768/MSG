@@ -87,10 +87,10 @@ export default function ChatRoom() {
   const [isPartnerTyping, setIsPartnerTyping] = useState(false);
   const typingTimeoutRef = useRef<any>(null);
 
-  // Voice Note state
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const iceCandidateQueue = useRef<any[]>([]);
 
   const handlePressStart = (msgId: string) => {
     pressTimer.current = setTimeout(() => {
@@ -226,16 +226,28 @@ export default function ChatRoom() {
         await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.answer));
         setInCall(true);
         setIsCalling(false);
+        
+        // Drain ICE candidate queue
+        iceCandidateQueue.current.forEach(async (candidate) => {
+          try {
+            await peerConnection.current!.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.error('Error adding queued ice candidate', e);
+          }
+        });
+        iceCandidateQueue.current = [];
       }
     });
 
     socket.on('ice-candidate-received', async (candidate) => {
-      if (peerConnection.current) {
+      if (peerConnection.current && peerConnection.current.remoteDescription) {
         try {
           await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (e) {
           console.error('Error adding received ice candidate', e);
         }
+      } else {
+        iceCandidateQueue.current.push(candidate);
       }
     });
 
@@ -305,6 +317,17 @@ export default function ChatRoom() {
     if (!pc) return;
 
     await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+    
+    // Drain ICE candidate queue
+    iceCandidateQueue.current.forEach(async (candidate) => {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) {
+        console.error('Error adding queued ice candidate', e);
+      }
+    });
+    iceCandidateQueue.current = [];
+
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
