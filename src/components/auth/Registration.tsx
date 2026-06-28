@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Camera, User, Key, Loader2, Fingerprint } from 'lucide-react';
+import imageCompression from 'browser-image-compression';
 import './Auth.css';
 
 export default function Registration() {
@@ -10,17 +11,34 @@ export default function Registration() {
 
   const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
-  const [pfpFile, setPfpFile] = useState<File | null>(null);
+  const [pfpFile, setPfpFile] = useState<File | Blob | null>(null);
   const [pfpPreview, setPfpPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setPfpFile(file);
-      const reader = new FileReader();
-      reader.onload = (event) => setPfpPreview(event.target?.result as string);
-      reader.readAsDataURL(file);
+      
+      try {
+        const options = {
+          maxSizeMB: 0.5,
+          maxWidthOrHeight: 1024,
+          useWebWorker: true,
+        };
+        const compressedFile = await imageCompression(file, options);
+        setPfpFile(compressedFile);
+        
+        const reader = new FileReader();
+        reader.onload = (event) => setPfpPreview(event.target?.result as string);
+        reader.readAsDataURL(compressedFile);
+      } catch (error) {
+        console.error("Compression error:", error);
+        // Fallback to original if compression fails
+        setPfpFile(file);
+        const reader = new FileReader();
+        reader.onload = (event) => setPfpPreview(event.target?.result as string);
+        reader.readAsDataURL(file);
+      }
     }
   };
 

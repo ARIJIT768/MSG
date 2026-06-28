@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { api, socket } from '../../config/api';
 import CryptoJS from 'crypto-js';
 import { ArrowLeft, Send, Shield, Paperclip, X, Loader2 } from 'lucide-react';
+import imageCompression from 'browser-image-compression';
 import './Main.css';
 
 type Message = {
@@ -116,7 +117,7 @@ export default function ChatRoom() {
     };
   }, [chatId, sharedKey]);
 
-  const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const isVideo = file.type.startsWith('video/');
@@ -127,12 +128,27 @@ export default function ChatRoom() {
         return;
       }
 
-      setMediaFile(file);
+      let finalFile: File | Blob = file;
+
+      if (isImage) {
+        try {
+          const options = {
+            maxSizeMB: 1, // slightly larger for chat photos
+            maxWidthOrHeight: 1920,
+            useWebWorker: true,
+          };
+          finalFile = await imageCompression(file, options);
+        } catch (error) {
+          console.error("Compression error:", error);
+        }
+      }
+
+      setMediaFile(finalFile as File);
       setMediaType(isVideo ? 'video' : 'image');
 
       const reader = new FileReader();
       reader.onload = (event) => setMediaPreview(event.target?.result as string);
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(finalFile);
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
