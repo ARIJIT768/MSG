@@ -22,8 +22,9 @@ router.get('/:username', async (req, res) => {
     // 2. Fetch unexpired statuses for these contacts
     // Note: TTL index handles physical deletion, but just in case, we query where expiresAt > now
     const now = new Date();
+    const regexContacts = uniqueContacts.map(c => new RegExp(`^${c}$`, 'i'));
     const statuses = await Status.find({
-      senderId: { $in: uniqueContacts },
+      senderId: { $in: regexContacts },
       expiresAt: { $gt: now }
     }).sort({ createdAt: -1 });
 
