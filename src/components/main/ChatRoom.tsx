@@ -14,6 +14,11 @@ type Message = {
   mediaUrl?: string;
   mediaType?: 'image' | 'video' | 'audio';
   replyTo?: string | null;
+  statusReply?: {
+    mediaUrl?: string;
+    mediaType?: string;
+    caption?: string;
+  } | null;
   status?: 'sent' | 'delivered' | 'read';
   reactions?: Record<string, string>;
   createdAt: any;
@@ -590,7 +595,7 @@ export default function ChatRoom() {
             ) : partnerOnline ? (
               <span className="status-online">Online</span>
             ) : partnerLastSeen ? (
-              <span className="status-offline">Last seen {new Date(partnerLastSeen).toLocaleString([], {hour: '2-digit', minute:'2-digit', month: 'short', day: 'numeric'})}</span>
+              <span className="status-offline">Last seen {formatLastSeen(partnerLastSeen)}</span>
             ) : (
               <span className="status-offline">Offline</span>
             )}
@@ -669,6 +674,21 @@ export default function ChatRoom() {
                   }}>
                     <div className="replied-sender">{repliedMsg.senderId === username ? 'You' : repliedMsg.senderId}</div>
                     <div className="replied-text">{repliedText}</div>
+                  </div>
+                )}
+
+                {msg.statusReply && (
+                  <div className="status-reply-box">
+                    <div className="status-reply-header">Reply to status</div>
+                    {msg.statusReply.mediaType === 'image' && msg.statusReply.mediaUrl && (
+                      <img src={msg.statusReply.mediaUrl} alt="Status" className="status-reply-media" />
+                    )}
+                    {msg.statusReply.mediaType === 'video' && msg.statusReply.mediaUrl && (
+                      <video src={msg.statusReply.mediaUrl} className="status-reply-media" />
+                    )}
+                    {msg.statusReply.caption && (
+                      <div className="status-reply-caption">{msg.statusReply.caption}</div>
+                    )}
                   </div>
                 )}
                 

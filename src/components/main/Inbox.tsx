@@ -23,6 +23,10 @@ const decryptMessage = (ciphertext: string, sharedKey: string) => {
   }
 };
 
+const encryptMessage = (message: string, sharedKey: string) => {
+  return CryptoJS.AES.encrypt(message, sharedKey).toString();
+};
+
 export interface ChatRoom {
   id: string;
   participants: string[];
@@ -129,6 +133,37 @@ export default function Inbox() {
       }
     } catch (error) {
       console.error('Failed to load data:', error);
+    }
+  };
+
+  const handleStatusReply = async (status: any, text: string) => {
+    try {
+      const res = await api.post('/chats', { participant: status.senderId });
+      const chatId = res.data._id;
+      
+      const sharedKey = getSharedKey(username || '', status.senderId);
+      const encryptedText = encryptMessage(text, sharedKey);
+      
+      socket.emit('send-message', {
+        id: Date.now().toString(),
+        chatId,
+        senderId: username,
+        text: encryptedText,
+        mediaUrl: null,
+        mediaType: null,
+        replyTo: null,
+        statusReply: {
+          mediaUrl: status.mediaUrl,
+          mediaType: status.mediaType,
+          caption: status.caption
+        }
+      });
+      
+      setActiveStatusViewer(null);
+      navigate(`/chat/${chatId}/${status.senderId}`);
+    } catch (err) {
+      console.error("Failed to send status reply", err);
+      alert("Could not send reply.");
     }
   };
 
@@ -528,6 +563,7 @@ export default function Inbox() {
           profilePicUrl={profiles[activeStatusViewer.senderId]?.profilePicUrl || undefined}
           username={username}
           onClose={() => setActiveStatusViewer(null)} 
+          onReply={handleStatusReply}
         />
       )}
 

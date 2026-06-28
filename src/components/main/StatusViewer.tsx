@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Eye } from 'lucide-react';
+import { X, Trash2, Eye, Heart, Send } from 'lucide-react';
 import type { UserStatuses } from './Inbox';
 import { api, socket } from '../../config/api';
 
@@ -8,12 +8,15 @@ interface StatusViewerProps {
   profilePicUrl?: string;
   username: string; // Used to determine if the viewer owns the status
   onClose: () => void;
+  onReply?: (status: any, text: string) => void;
 }
 
-export default function StatusViewer({ userStatuses, profilePicUrl, username, onClose }: StatusViewerProps) {
+export default function StatusViewer({ userStatuses, profilePicUrl, username, onClose, onReply }: StatusViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [showViewersModal, setShowViewersModal] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [isInputFocused, setIsInputFocused] = useState(false);
   
   const currentStatus = userStatuses.statuses[currentIndex];
   const DURATION = 5000; // 5 seconds per status
@@ -35,7 +38,7 @@ export default function StatusViewer({ userStatuses, profilePicUrl, username, on
     let isPaused = false;
 
     const tick = () => {
-      if (isPaused || showViewersModal) return;
+      if (isPaused || showViewersModal || isInputFocused) return;
       const elapsed = Date.now() - start;
       const currentProgress = (elapsed / DURATION) * 100;
       
@@ -57,7 +60,7 @@ export default function StatusViewer({ userStatuses, profilePicUrl, username, on
     animationFrameId = requestAnimationFrame(tick);
 
     return () => cancelAnimationFrame(animationFrameId);
-  }, [currentIndex, userStatuses.statuses.length, onClose, showViewersModal]);
+  }, [currentIndex, userStatuses.statuses.length, onClose, showViewersModal, isInputFocused]);
 
   const handleNext = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -176,12 +179,53 @@ export default function StatusViewer({ userStatuses, profilePicUrl, username, on
           </div>
         )}
 
-        {/* Navigation Tap Zones */}
-        {!showViewersModal && (
-          <>
-            <div className="status-tap-zone prev" onClick={handlePrev} />
-            <div className="status-tap-zone next" onClick={handleNext} />
-          </>
+        {!showViewersModal && !isInputFocused && (
+          <div className="status-nav-zones">
+            <div className="nav-zone left" onClick={handlePrev} />
+            <div className="nav-zone right" onClick={handleNext} />
+          </div>
+        )}
+
+        {/* Reply Bar (For others' statuses) */}
+        {userStatuses.senderId !== username && (
+          <div className="status-reply-bar" onClick={(e) => e.stopPropagation()}>
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (replyText.trim() && onReply) {
+                  onReply(currentStatus, replyText.trim());
+                  setReplyText('');
+                }
+              }} 
+              style={{ display: 'flex', width: '100%', gap: '8px', alignItems: 'center' }}
+            >
+              <input 
+                type="text" 
+                placeholder="Reply..." 
+                className="status-reply-input"
+                value={replyText}
+                onChange={e => setReplyText(e.target.value)}
+                onFocus={() => setIsInputFocused(true)}
+                onBlur={() => setIsInputFocused(false)}
+              />
+              {replyText.trim() ? (
+                <button type="submit" className="icon-button" style={{ color: 'var(--primary)' }}>
+                  <Send size={20} />
+                </button>
+              ) : (
+                <button 
+                  type="button" 
+                  className="icon-button" 
+                  style={{ color: '#ef4444' }}
+                  onClick={() => {
+                    if (onReply) onReply(currentStatus, '❤️');
+                  }}
+                >
+                  <Heart size={24} fill="#ef4444" />
+                </button>
+              )}
+            </form>
+          </div>
         )}
         
         {/* Viewers Modal */}

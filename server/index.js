@@ -98,8 +98,10 @@ io.on('connection', (socket) => {
         mediaUrl: messageData.mediaUrl,
         mediaType: messageData.mediaType,
         replyTo: messageData.replyTo,
+        statusReply: messageData.statusReply || null,
         status: initialStatus
       });
+
       await newMsg.save();
 
       // 2. Broadcast to room immediately
@@ -112,6 +114,7 @@ io.on('connection', (socket) => {
         mediaUrl: newMsg.mediaUrl,
         mediaType: newMsg.mediaType,
         replyTo: newMsg.replyTo,
+        statusReply: newMsg.statusReply,
         status: newMsg.status,
         createdAt: newMsg.createdAt
       });

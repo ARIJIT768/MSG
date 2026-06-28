@@ -9,6 +9,14 @@ const messageSchema = new mongoose.Schema({
   replyTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null }, // ID of the message being replied to
   status: { type: String, enum: ['sent', 'delivered', 'read'], default: 'sent' }, // WhatsApp-style status
   reactions: { type: Object, default: {} }, // Map of username -> emoji
+  statusReply: { 
+    type: {
+      mediaUrl: String,
+      mediaType: String,
+      caption: String
+    },
+    default: null
+  },
   createdAt: { type: Date, default: Date.now },
 });
 
