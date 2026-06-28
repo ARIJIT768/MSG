@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { api, socket } from '../../config/api';
 import CryptoJS from 'crypto-js';
-import { MessageSquarePlus, LogOut, Shield } from 'lucide-react';
+import { MessageSquarePlus, LogOut, Shield, Camera } from 'lucide-react';
+import imageCompression from 'browser-image-compression';
 import ContactsModal from './ContactsModal';
 import './Main.css';
 
@@ -36,12 +37,30 @@ type UserProfile = {
 };
 
 export default function Inbox() {
-  const { username, logout } = useAuth();
+  const { username, profilePicUrl, updateProfilePic, logout } = useAuth();
   const navigate = useNavigate();
 
   const [chats, setChats] = useState<ChatRoom[]>([]);
   const [profiles, setProfiles] = useState<Record<string, UserProfile>>({});
   const [showContacts, setShowContacts] = useState(false);
+  const [isUpdatingPfp, setIsUpdatingPfp] = useState(false);
+
+  const handleImageUpdate = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setIsUpdatingPfp(true);
+      try {
+        const file = e.target.files[0];
+        const options = { maxSizeMB: 0.5, maxWidthOrHeight: 1024, useWebWorker: true };
+        const compressedFile = await imageCompression(file, options);
+        await updateProfilePic(compressedFile as File);
+      } catch (err) {
+        console.error("PFP update error:", err);
+        alert("Failed to update profile picture");
+      } finally {
+        setIsUpdatingPfp(false);
+      }
+    }
+  };
 
   const fetchInboxData = async () => {
     if (!username) return;
@@ -69,8 +88,21 @@ export default function Inbox() {
       fetchInboxData();
     });
 
+    socket.on('user-status-changed', ({ username: changedUser, isOnline, lastSeen }) => {
+      setProfiles(prev => ({
+        ...prev,
+        [changedUser]: {
+          ...prev[changedUser],
+          username: changedUser,
+          isOnline,
+          lastSeen
+        }
+      }));
+    });
+
     return () => {
       socket.off('chat-updated');
+      socket.off('user-status-changed');
     };
   }, [username]);
 
@@ -144,9 +176,31 @@ export default function Inbox() {
           )}
         </div>
 
-        <div className="sidebar-footer">
-          <button className="logout-btn" onClick={logout}>
-            <LogOut size={16} /> Disconnect
+        <div className="sidebar-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="my-profile-mini">
+            <input
+              type="file"
+              id="update-pfp"
+              accept="image/*"
+              onChange={handleImageUpdate}
+              style={{ display: 'none' }}
+              disabled={isUpdatingPfp}
+            />
+            <label htmlFor="update-pfp" className="avatar my-avatar" style={{ cursor: 'pointer', opacity: isUpdatingPfp ? 0.5 : 1 }}>
+              {profilePicUrl ? (
+                <img src={profilePicUrl} alt="Me" />
+              ) : (
+                <div className="avatar-placeholder">{username?.charAt(0).toUpperCase()}</div>
+              )}
+              <div className="avatar-overlay">
+                <Camera size={14} color="#fff" />
+              </div>
+            </label>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{username}</span>
+          </div>
+
+          <button className="logout-btn" onClick={logout} style={{ padding: '6px 10px', fontSize: 12 }}>
+            <LogOut size={14} /> Disconnect
           </button>
         </div>
       </div>

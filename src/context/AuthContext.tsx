@@ -8,6 +8,7 @@ type AuthContextType = {
   isAuthenticated: boolean;
   login: (username: string, pin: string) => Promise<boolean>;
   register: (username: string, pin: string, file?: File | null) => Promise<boolean>;
+  updateProfilePic: (file: File) => Promise<boolean>;
   logout: () => void;
   resetAllData: () => Promise<void>;
 };
@@ -98,6 +99,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateProfilePic = async (file: File) => {
+    if (!username) return false;
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const uploadRes = await api.post('/media/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      
+      const pfpUrl = uploadRes.data.url;
+      const res = await api.post('/auth/update-profile', { username, profilePicUrl: pfpUrl });
+      
+      if (res.data.success) {
+        setProfilePicUrl(res.data.profilePicUrl);
+        localStorage.setItem('msg_profilePic', res.data.profilePicUrl);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Update PFP failed:', e);
+      return false;
+    }
+  };
+
   const logout = () => {
     socket.disconnect();
     setUsername(null); // Just clear the session (locks the app)
@@ -113,7 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ username, profilePicUrl, isRegistered, isAuthenticated, login, register, logout, resetAllData }}>
+    <AuthContext.Provider value={{ username, profilePicUrl, isRegistered, isAuthenticated, login, register, updateProfilePic, logout, resetAllData }}>
       {children}
     </AuthContext.Provider>
   );

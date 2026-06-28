@@ -46,6 +46,8 @@ export default function ChatRoom() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [partnerPic, setPartnerPic] = useState<string | null>(null);
+  const [partnerOnline, setPartnerOnline] = useState<boolean>(false);
+  const [partnerLastSeen, setPartnerLastSeen] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
@@ -78,11 +80,10 @@ export default function ChatRoom() {
     if (!partnerUsername) return;
     const fetchPartner = async () => {
       try {
-        const res = await api.get('/auth/users');
-        const partner = res.data.find((u: any) => u.username === partnerUsername);
-        if (partner) {
-          setPartnerPic(partner.profilePicUrl || null);
-        }
+        const res = await api.get(`/auth/user/${partnerUsername}`);
+        setPartnerPic(res.data.profilePicUrl || null);
+        setPartnerOnline(res.data.isOnline);
+        setPartnerLastSeen(res.data.lastSeen);
       } catch (err) {
         console.warn('Failed to fetch partner profile:', err);
       }
@@ -160,13 +161,22 @@ export default function ChatRoom() {
       ));
     });
 
+    // Listen for status changes
+    socket.on('user-status-changed', ({ username: changedUser, isOnline, lastSeen }) => {
+      if (changedUser === partnerUsername) {
+        setPartnerOnline(isOnline);
+        setPartnerLastSeen(lastSeen);
+      }
+    });
+
     return () => {
       socket.off('receive-message');
       socket.off('messages-delivered');
       socket.off('messages-read');
       socket.off('message-reaction-updated');
+      socket.off('user-status-changed');
     };
-  }, [chatId, sharedKey]);
+  }, [chatId, sharedKey, partnerUsername]);
 
   const handleMediaSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -289,7 +299,11 @@ export default function ChatRoom() {
           <ArrowLeft size={22} />
         </button>
         <div className="chat-partner-info">
-          <div className="avatar small-avatar">
+          <div 
+            className="avatar small-avatar" 
+            onClick={() => partnerPic && setLightboxUrl(partnerPic)}
+            style={{ cursor: partnerPic ? 'pointer' : 'default' }}
+          >
             {partnerPic ? (
               <img src={partnerPic} alt={partnerUsername} />
             ) : (
@@ -298,10 +312,20 @@ export default function ChatRoom() {
           </div>
           <div className="header-text">
             <h2>{partnerUsername}</h2>
-            <div className="encryption-badge">
-              <Shield size={10} className="shield-icon" />
-              <span>AES-256 Encrypted</span>
-            </div>
+            {partnerOnline ? (
+              <div className="status-badge online">
+                <span className="dot"></span> Online
+              </div>
+            ) : partnerLastSeen ? (
+              <div className="status-badge offline">
+                last seen at {new Date(partnerLastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            ) : (
+              <div className="encryption-badge">
+                <Shield size={10} className="shield-icon" />
+                <span>AES-256 Encrypted</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

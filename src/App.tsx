@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
-import { api } from './config/api';
+import { api, socket } from './config/api';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import Registration from './components/auth/Registration';
@@ -10,7 +10,7 @@ import Inbox from './components/main/Inbox';
 import ChatRoom from './components/main/ChatRoom';
 
 function App() {
-  const { isRegistered, isAuthenticated } = useAuth();
+  const { username, isRegistered, isAuthenticated } = useAuth();
 
   useEffect(() => {
     const setupUpdater = async () => {
@@ -41,6 +41,13 @@ function App() {
     };
     setupUpdater();
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated && username) {
+      socket.connect();
+      socket.emit('user-connected', username);
+    }
+  }, [isAuthenticated, username]);
 
   if (!isRegistered) {
     return <Registration />;

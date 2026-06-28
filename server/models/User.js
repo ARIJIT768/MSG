@@ -5,6 +5,8 @@ const userSchema = new mongoose.Schema({
   pinHash: { type: String, required: true },
   profilePicFileId: { type: mongoose.Schema.Types.ObjectId, default: null },
   profilePicUrl: { type: String, default: null },
+  isOnline: { type: Boolean, default: false },
+  lastSeen: { type: Date, default: Date.now },
   registeredAt: { type: Date, default: Date.now },
 });
 

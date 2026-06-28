@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const Message = require('./models/Message');
+const User = require('./models/User');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -44,6 +45,23 @@ app.get('*', (req, res) => {
 // Socket.io Events
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
+  let currentUsername = null;
+
+  // Handle user coming online
+  socket.on('user-connected', async (username) => {
+    currentUsername = username;
+    try {
+      await User.findOneAndUpdate(
+        { username },
+        { isOnline: true },
+        { new: true }
+      );
+      // Broadcast status change
+      io.emit('user-status-changed', { username, isOnline: true });
+    } catch (err) {
+      console.error('Error updating online status:', err);
+    }
+  });
 
   // Join a specific chat room
   socket.on('join-chat', (chatId) => {
@@ -118,8 +136,25 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
     console.log(`User disconnected: ${socket.id}`);
+    if (currentUsername) {
+      try {
+        const lastSeenTime = new Date();
+        await User.findOneAndUpdate(
+          { username: currentUsername },
+          { isOnline: false, lastSeen: lastSeenTime },
+          { new: true }
+        );
+        io.emit('user-status-changed', { 
+          username: currentUsername, 
+          isOnline: false, 
+          lastSeen: lastSeenTime 
+        });
+      } catch (err) {
+        console.error('Error updating offline status:', err);
+      }
+    }
   });
 });
 
