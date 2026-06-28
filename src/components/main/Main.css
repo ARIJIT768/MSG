@@ -459,6 +459,8 @@
   border-radius: 18px;
   position: relative;
   transition: transform var(--transition-fast);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .message-bubble:hover {
