@@ -39,7 +39,8 @@ router.post('/upload', upload.single('file'), (req, res) => {
       res.status(500).json({ error: 'Upload failed' });
     })
     .on('finish', () => {
-      const fileUrl = `${req.protocol}://${req.get('host')}/api/media/${uploadStream.id}`;
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const fileUrl = `${protocol}://${req.get('host')}/api/media/${uploadStream.id}`;
       res.json({ url: fileUrl, fileId: uploadStream.id });
     });
 });
