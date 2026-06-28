@@ -19,7 +19,7 @@ function generateUpdateZip() {
 
   return new Promise((resolve, reject) => {
     const output = fs.createWriteStream(zipPath);
-    const archive = archiver('zip', {
+    const archive = new archiver.ZipArchive({
       zlib: { level: 9 } // Highest compression
     });
 
