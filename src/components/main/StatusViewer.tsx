@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { UserStatuses } from './Inbox';
+import { X } from 'lucide-react';
+import type { UserStatuses } from './Inbox';
 
 interface StatusViewerProps {
   userStatuses: UserStatuses;

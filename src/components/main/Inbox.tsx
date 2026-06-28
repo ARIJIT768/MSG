@@ -327,7 +327,7 @@ export default function Inbox() {
                 <div key={statusUser.senderId} className="status-item" onClick={() => setActiveStatusViewer(statusUser)}>
                   <div className="avatar status-ring unread">
                     {profiles[statusUser.senderId]?.profilePicUrl ? (
-                      <img src={profiles[statusUser.senderId].profilePicUrl} alt={statusUser.senderId} />
+                      <img src={profiles[statusUser.senderId].profilePicUrl || undefined} alt={statusUser.senderId} />
                     ) : (
                       <div className="avatar-placeholder">{statusUser.senderId.charAt(0).toUpperCase()}</div>
                     )}
@@ -428,7 +428,7 @@ export default function Inbox() {
       {activeStatusViewer && (
         <StatusViewer 
           userStatuses={activeStatusViewer} 
-          profilePicUrl={profiles[activeStatusViewer.senderId]?.profilePicUrl}
+          profilePicUrl={profiles[activeStatusViewer.senderId]?.profilePicUrl || undefined}
           onClose={() => setActiveStatusViewer(null)} 
         />
       )}
