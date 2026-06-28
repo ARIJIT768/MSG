@@ -27,6 +27,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/chats', require('./routes/chats'));
 app.use('/api/messages', require('./routes/messages'));
 app.use('/api/media', require('./routes/media'));
+app.use('/api/status', require('./routes/status'));
 app.use('/api/update', require('./routes/update'));
 
 // MongoDB Connection
@@ -173,6 +174,12 @@ io.on('connection', (socket) => {
     } catch (err) {
       console.error('Error adding reaction:', err);
     }
+  });
+
+  // Handle new status upload
+  socket.on('new-status', (statusData) => {
+    // Broadcast to everyone (in a real app, you'd only broadcast to contacts, but this works for our scale)
+    socket.broadcast.emit('user-new-status', statusData);
   });
 
   socket.on('disconnect', async () => {

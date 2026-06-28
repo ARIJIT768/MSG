@@ -1291,3 +1291,208 @@
   50% { transform: scale(1.1); opacity: 0.7; }
   100% { transform: scale(1); opacity: 1; }
 }
+
+/* ---- Updates & Status UI ---- */
+.tab-switcher {
+  display: flex;
+  background: var(--bg-card);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+}
+.tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  transition: all var(--transition-fast);
+}
+.tab-btn.active {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.updates-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.updates-header {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 16px;
+  margin-bottom: 8px;
+  padding-left: 8px;
+}
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.status-item:hover {
+  background: rgba(255,255,255,0.05);
+}
+.status-ring {
+  padding: 2px;
+  background: var(--bg-base);
+  position: relative;
+}
+.status-ring.unread {
+  background: linear-gradient(45deg, var(--primary), var(--accent));
+  border-radius: 50%;
+}
+.status-ring img, .status-ring .avatar-placeholder {
+  border: 2px solid var(--bg-base);
+}
+.my-status-ring {
+  background: var(--bg-elevated);
+  border-radius: 50%;
+}
+.add-status-icon {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background: var(--success);
+  color: white;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: bold;
+  border: 2px solid var(--bg-base);
+}
+.status-info h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+.status-info p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Status Viewer Overlay */
+.status-viewer-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #000;
+  z-index: 2000;
+  display: flex;
+  justify-content: center;
+}
+.status-viewer-container {
+  width: 100%;
+  max-width: 480px;
+  height: 100%;
+  position: relative;
+  background: #111;
+  display: flex;
+  flex-direction: column;
+}
+.status-progress-container {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+}
+.status-progress-bg {
+  flex: 1;
+  height: 2px;
+  background: rgba(255,255,255,0.3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.status-progress-fill {
+  height: 100%;
+  background: #fff;
+  width: 0%;
+}
+.status-header {
+  position: absolute;
+  top: 24px;
+  left: 0;
+  right: 0;
+  padding: 10px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 10;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+}
+.status-user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.status-username {
+  color: #fff;
+  font-weight: 600;
+  font-size: 15px;
+  display: block;
+}
+.status-time {
+  color: rgba(255,255,255,0.7);
+  font-size: 12px;
+}
+.status-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  height: 100%;
+}
+.status-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.status-text {
+  font-size: 24px;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+  padding: 40px;
+}
+.status-caption {
+  position: absolute;
+  bottom: 40px;
+  left: 20px;
+  right: 20px;
+  text-align: center;
+  color: #fff;
+  font-size: 15px;
+  background: rgba(0,0,0,0.5);
+  padding: 10px;
+  border-radius: 8px;
+}
+.status-tap-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  z-index: 5;
+}
+.status-tap-zone.prev {
+  left: 0;
+}
+.status-tap-zone.next {
+  right: 0;
+}

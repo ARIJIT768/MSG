@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { api, socket } from '../../config/api';
 import CryptoJS from 'crypto-js';
-import { MessageSquarePlus, LogOut, Shield, Camera, Menu, X, Palette } from 'lucide-react';
+import { MessageSquarePlus, LogOut, Shield, Camera, Menu, X, Palette, CircleDashed } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import ContactsModal from './ContactsModal';
+import StatusViewer from './StatusViewer';
 import './Main.css';
 
 const getSharedKey = (user1: string, user2: string) => {
@@ -22,13 +23,28 @@ const decryptMessage = (ciphertext: string, sharedKey: string) => {
   }
 };
 
-type ChatRoom = {
+export interface ChatRoom {
   id: string;
   participants: string[];
-  lastMessage: string | null;
-  lastMessageSender: string | null;
-  lastMessageTime: string | null;
+  lastMessage: string;
+  lastMessageSender: string;
+  lastMessageTime: Date;
   unreadCount?: number;
+}
+
+export interface StatusItem {
+  id: string;
+  mediaUrl: string;
+  mediaType: string;
+  caption: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface UserStatuses {
+  senderId: string;
+  lastUpdateTime: string;
+  statuses: StatusItem[];
 };
 
 type UserProfile = {
@@ -42,9 +58,14 @@ export default function Inbox() {
 
   const [chats, setChats] = useState<ChatRoom[]>([]);
   const [profiles, setProfiles] = useState<Record<string, UserProfile>>({});
+  const [statuses, setStatuses] = useState<UserStatuses[]>([]);
+  const [activeTab, setActiveTab] = useState<'chats'|'updates'>('chats');
+  const [activeStatusViewer, setActiveStatusViewer] = useState<UserStatuses | null>(null);
+  
   const [showContacts, setShowContacts] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
   const [isUpdatingPfp, setIsUpdatingPfp] = useState(false);
+  const [isUploadingStatus, setIsUploadingStatus] = useState(false);
   const [activeTheme, setActiveTheme] = useState(localStorage.getItem('msg_theme') || '');
 
   useEffect(() => {
@@ -66,6 +87,42 @@ export default function Inbox() {
       } finally {
         setIsUpdatingPfp(false);
       }
+    }
+  };
+
+  const fetchChatsAndProfiles = async () => {
+    try {
+      const chatsRes = await api.get(`/chats/${username}`);
+      setChats(chatsRes.data);
+
+      const uniqueUsers = new Set<string>();
+      chatsRes.data.forEach((chat: ChatRoom) => {
+        chat.participants.forEach(p => uniqueUsers.add(p));
+      });
+      uniqueUsers.add(username || '');
+
+      const profilesData: Record<string, UserProfile> = {};
+      await Promise.all(
+        Array.from(uniqueUsers).map(async (user) => {
+          try {
+            const profileRes = await api.get(`/auth/profile/${user}`);
+            profilesData[user] = profileRes.data;
+          } catch (e) {
+            console.error(`Failed to load profile for ${user}`);
+          }
+        })
+      );
+      setProfiles(profilesData);
+      
+      // Fetch statuses
+      try {
+        const statusRes = await api.get(`/status/${username}`);
+        setStatuses(statusRes.data);
+      } catch (err) {
+        console.error('Failed to load statuses', err);
+      }
+    } catch (error) {
+      console.error('Failed to load data:', error);
     }
   };
 
@@ -97,6 +154,8 @@ export default function Inbox() {
 
     socket.on('user-status-changed', ({ username: changedUser, isOnline, lastSeen }) => {
       setProfiles(prev => ({
+      socket.on('user-status-changed', ({ username: changedUser, isOnline, lastSeen }) => {
+      setProfiles(prev => ({
         ...prev,
         [changedUser]: {
           ...prev[changedUser],
@@ -107,11 +166,59 @@ export default function Inbox() {
       }));
     });
 
+    socket.on('user-new-status', () => {
+      // Refresh statuses when someone posts a new one
+      if (username) fetchChatsAndProfiles();
+    });
+
     return () => {
       socket.off('chat-updated');
       socket.off('user-status-changed');
+      socket.off('user-new-status');
     };
   }, [username]);
+
+  const handleStatusUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      try {
+        setIsUploadingStatus(true);
+        const file = e.target.files[0];
+        
+        let fileToUpload = file;
+        const isVideo = file.type.startsWith('video/');
+        
+        if (!isVideo) {
+          fileToUpload = await imageCompression(file, {
+            maxSizeMB: 1,
+            maxWidthOrHeight: 1280,
+            useWebWorker: true
+          });
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileToUpload);
+
+        const mediaRes = await api.post('/media/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        await api.post('/status', {
+          senderId: username,
+          mediaUrl: mediaRes.data.url,
+          mediaType: isVideo ? 'video' : 'image',
+          caption: ''
+        });
+
+        fetchChatsAndProfiles();
+        socket.emit('new-status', { senderId: username });
+      } catch (error) {
+        console.error('Status upload failed:', error);
+        alert('Failed to post status');
+      } finally {
+        setIsUploadingStatus(false);
+      }
+    }
+  };
 
   const totalUnread = chats.reduce((acc, chat) => acc + (chat.unreadCount || 0), 0);
 
@@ -130,61 +237,117 @@ export default function Inbox() {
           </button>
         </div>
 
-        <div className="chat-list">
-          {chats.length === 0 ? (
-            <div className="empty-state">
-              <Shield size={48} style={{ opacity: 0.2, marginBottom: 16 }} />
-              <p>No active sessions</p>
-              <p style={{ fontSize: 12, marginTop: 4 }}>Start a secure conversation</p>
-              <button className="primary-btn" onClick={() => setShowContacts(true)}>
-                New Encrypted Chat
-              </button>
-            </div>
+        <div className="tab-switcher">
+          <button className={`tab-btn ${activeTab === 'chats' ? 'active' : ''}`} onClick={() => setActiveTab('chats')}>Chats</button>
+          <button className={`tab-btn ${activeTab === 'updates' ? 'active' : ''}`} onClick={() => setActiveTab('updates')}>Updates</button>
+        </div>
+
+        <div className="chat-list" style={{ marginTop: '10px' }}>
+          {activeTab === 'chats' ? (
+            chats.length === 0 ? (
+              <div className="empty-state">
+                <Shield size={48} style={{ opacity: 0.2, marginBottom: 16 }} />
+                <p>No active sessions</p>
+                <p style={{ fontSize: 12, marginTop: 4 }}>Start a secure conversation</p>
+                <button className="primary-btn" onClick={() => setShowContacts(true)}>
+                  New Encrypted Chat
+                </button>
+              </div>
+            ) : (
+              chats.map(chat => {
+                const partnerUsername = chat.participants.find(p => p !== username) || 'Unknown';
+                const partnerProfile = profiles[partnerUsername];
+                let displayLastMessage = chat.lastMessage || '';
+
+                if (chat.lastMessage) {
+                  const sharedKey = getSharedKey(username || '', partnerUsername);
+                  displayLastMessage = decryptMessage(chat.lastMessage, sharedKey);
+                }
+
+                return (
+                  <div
+                    key={chat.id}
+                    className="chat-item"
+                    onClick={() => navigate(`/chat/${chat.id}/${partnerUsername}`)}
+                  >
+                    <div className="avatar">
+                      {partnerProfile?.profilePicUrl ? (
+                        <img src={partnerProfile.profilePicUrl} alt={partnerUsername} />
+                      ) : (
+                        <div className="avatar-placeholder">{partnerUsername.charAt(0).toUpperCase()}</div>
+                      )}
+                    </div>
+                    <div className="chat-preview">
+                      <div className="chat-preview-header">
+                        <h3>{partnerUsername}</h3>
+                        <div className="chat-meta" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {!!chat.unreadCount && chat.unreadCount > 0 && (
+                            <span className="badge" style={{ padding: '2px 6px', fontSize: '10px' }}>{chat.unreadCount}</span>
+                          )}
+                          {chat.lastMessageTime && (
+                            <span className="time">
+                              {new Date(chat.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="last-message">
+                        {chat.lastMessageSender === username ? 'You: ' : ''}{displayLastMessage || 'Start chatting…'}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            )
           ) : (
-            chats.map(chat => {
-              const partnerUsername = chat.participants.find(p => p !== username) || 'Unknown';
-              const partnerProfile = profiles[partnerUsername];
-              let displayLastMessage = chat.lastMessage || '';
-
-              if (chat.lastMessage) {
-                const sharedKey = getSharedKey(username || '', partnerUsername);
-                displayLastMessage = decryptMessage(chat.lastMessage, sharedKey);
-              }
-
-              return (
-                <div
-                  key={chat.id}
-                  className="chat-item"
-                  onClick={() => navigate(`/chat/${chat.id}/${partnerUsername}`)}
-                >
-                  <div className="avatar">
-                    {partnerProfile?.profilePicUrl ? (
-                      <img src={partnerProfile.profilePicUrl} alt={partnerUsername} />
+            <div className="updates-tab">
+              <div className="status-item my-status">
+                <input
+                  type="file"
+                  id="upload-status"
+                  accept="image/*,video/*"
+                  onChange={handleStatusUpload}
+                  style={{ display: 'none' }}
+                  disabled={isUploadingStatus}
+                />
+                <label htmlFor="upload-status" className="avatar status-ring my-status-ring">
+                  {profilePicUrl ? (
+                    <img src={profilePicUrl} alt="Me" />
+                  ) : (
+                    <div className="avatar-placeholder">{username?.charAt(0).toUpperCase()}</div>
+                  )}
+                  <div className="add-status-icon">+</div>
+                </label>
+                <div className="status-info">
+                  <h3>My Status</h3>
+                  <p>{isUploadingStatus ? 'Uploading...' : 'Tap to add status update'}</p>
+                </div>
+              </div>
+              
+              <h4 className="updates-header">Recent updates</h4>
+              {statuses.filter(s => s.senderId !== username).map(statusUser => (
+                <div key={statusUser.senderId} className="status-item" onClick={() => setActiveStatusViewer(statusUser)}>
+                  <div className="avatar status-ring unread">
+                    {profiles[statusUser.senderId]?.profilePicUrl ? (
+                      <img src={profiles[statusUser.senderId].profilePicUrl} alt={statusUser.senderId} />
                     ) : (
-                      <div className="avatar-placeholder">{partnerUsername.charAt(0).toUpperCase()}</div>
+                      <div className="avatar-placeholder">{statusUser.senderId.charAt(0).toUpperCase()}</div>
                     )}
                   </div>
-                  <div className="chat-preview">
-                    <div className="chat-preview-header">
-                      <h3>{partnerUsername}</h3>
-                      <div className="chat-meta" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {!!chat.unreadCount && chat.unreadCount > 0 && (
-                          <span className="badge" style={{ padding: '2px 6px', fontSize: '10px' }}>{chat.unreadCount}</span>
-                        )}
-                        {chat.lastMessageTime && (
-                          <span className="time">
-                            {new Date(chat.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <p className="last-message">
-                      {chat.lastMessageSender === username ? 'You: ' : ''}{displayLastMessage || 'Start chatting…'}
-                    </p>
+                  <div className="status-info">
+                    <h3>{statusUser.senderId}</h3>
+                    <p>{new Date(statusUser.lastUpdateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                   </div>
                 </div>
-              );
-            })
+              ))}
+              
+              {statuses.filter(s => s.senderId !== username).length === 0 && (
+                <div className="empty-state" style={{ marginTop: '20px' }}>
+                  <CircleDashed size={32} style={{ opacity: 0.2, marginBottom: 8 }} />
+                  <p style={{ fontSize: 13 }}>No recent updates from your network</p>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -263,6 +426,14 @@ export default function Inbox() {
           </div>
         </div>
       </div>
+
+      {activeStatusViewer && (
+        <StatusViewer 
+          userStatuses={activeStatusViewer} 
+          profilePicUrl={profiles[activeStatusViewer.senderId]?.profilePicUrl}
+          onClose={() => setActiveStatusViewer(null)} 
+        />
+      )}
 
       {showContacts && <ContactsModal onClose={() => setShowContacts(false)} profiles={profiles} />}
     </div>
