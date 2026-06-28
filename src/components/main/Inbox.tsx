@@ -154,8 +154,6 @@ export default function Inbox() {
 
     socket.on('user-status-changed', ({ username: changedUser, isOnline, lastSeen }) => {
       setProfiles(prev => ({
-      socket.on('user-status-changed', ({ username: changedUser, isOnline, lastSeen }) => {
-      setProfiles(prev => ({
         ...prev,
         [changedUser]: {
           ...prev[changedUser],
