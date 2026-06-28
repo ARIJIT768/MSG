@@ -205,8 +205,12 @@ io.on('connection', (socket) => {
 
   // Handle new status upload
   socket.on('new-status', (statusData) => {
-    // Broadcast to everyone (in a real app, you'd only broadcast to contacts, but this works for our scale)
-    socket.broadcast.emit('user-new-status', statusData);
+    io.emit('user-new-status', statusData);
+  });
+
+  // Handle status deletion
+  socket.on('delete-status', (statusId) => {
+    io.emit('status-deleted', statusId);
   });
 
   socket.on('disconnect', async () => {

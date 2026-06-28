@@ -90,4 +90,28 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Delete a status
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { senderId } = req.query; // Ensure the user deleting is the owner
+
+    const status = await Status.findById(id);
+    if (!status) {
+      return res.status(404).json({ error: 'Status not found' });
+    }
+
+    if (status.senderId !== senderId) {
+      return res.status(403).json({ error: 'Unauthorized to delete this status' });
+    }
+
+    await Status.findByIdAndDelete(id);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete status error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
 import type { UserStatuses } from './Inbox';
+import { api, socket } from '../../config/api';
 
 interface StatusViewerProps {
   userStatuses: UserStatuses;
   profilePicUrl?: string;
+  username: string; // Used to determine if the viewer owns the status
   onClose: () => void;
 }
 
-export default function StatusViewer({ userStatuses, profilePicUrl, onClose }: StatusViewerProps) {
+export default function StatusViewer({ userStatuses, profilePicUrl, username, onClose }: StatusViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   
@@ -63,6 +65,27 @@ export default function StatusViewer({ userStatuses, profilePicUrl, onClose }: S
     }
   };
 
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm('Delete this status?')) return;
+    
+    try {
+      await api.delete(`/status/${currentStatus.id}?senderId=${username}`);
+      socket.emit('delete-status', currentStatus.id);
+      
+      // Navigate to next or close
+      if (userStatuses.statuses.length === 1) {
+        onClose();
+      } else {
+        // Just close for simplicity, as the list state gets tricky here
+        onClose();
+      }
+    } catch (err) {
+      console.error('Failed to delete status', err);
+      alert('Failed to delete status');
+    }
+  };
+
   return (
     <div className="status-viewer-overlay">
       <div className="status-viewer-container">
@@ -98,9 +121,16 @@ export default function StatusViewer({ userStatuses, profilePicUrl, onClose }: S
               </span>
             </div>
           </div>
-          <button className="icon-button" onClick={onClose}>
-            <X size={24} color="#fff" />
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {userStatuses.senderId === username && (
+              <button className="icon-button" onClick={handleDelete} title="Delete Status">
+                <Trash2 size={24} color="#ef4444" />
+              </button>
+            )}
+            <button className="icon-button" onClick={onClose} title="Close">
+              <X size={24} color="#fff" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}

@@ -1496,3 +1496,49 @@
 .status-tap-zone.next {
   right: 0;
 }
+
+/* Status Upload Preview Modal */
+.status-upload-modal {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg-card);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 2001;
+  position: relative;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  animation: slideUp 0.3s ease;
+}
+.status-preview-media {
+  flex: 1;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: 50vh;
+  overflow: hidden;
+}
+.preview-element {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.status-caption-input {
+  padding: 16px;
+  background: var(--bg-card);
+}
+.status-caption-input input {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  font-size: 15px;
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+.status-caption-input input:focus {
+  border-color: var(--primary);
+}

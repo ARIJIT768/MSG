@@ -61,6 +61,11 @@ export default function Inbox() {
   const [statuses, setStatuses] = useState<UserStatuses[]>([]);
   const [activeTab, setActiveTab] = useState<'chats'|'updates'>('chats');
   const [activeStatusViewer, setActiveStatusViewer] = useState<UserStatuses | null>(null);
+
+  // Status Upload Preview State
+  const [statusPreviewFile, setStatusPreviewFile] = useState<File | null>(null);
+  const [statusPreviewUrl, setStatusPreviewUrl] = useState<string | null>(null);
+  const [statusCaption, setStatusCaption] = useState('');
   
   const [showContacts, setShowContacts] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
@@ -169,52 +174,73 @@ export default function Inbox() {
       if (username) fetchChatsAndProfiles();
     });
 
+    socket.on('status-deleted', () => {
+      // Refresh statuses when one is deleted
+      if (username) fetchChatsAndProfiles();
+    });
+
     return () => {
       socket.off('chat-updated');
       socket.off('user-status-changed');
       socket.off('user-new-status');
+      socket.off('status-deleted');
     };
   }, [username]);
 
   const handleStatusUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      try {
-        setIsUploadingStatus(true);
-        const file = e.target.files[0];
-        
-        let fileToUpload = file;
-        const isVideo = file.type.startsWith('video/');
-        
-        if (!isVideo) {
-          fileToUpload = await imageCompression(file, {
-            maxSizeMB: 1,
-            maxWidthOrHeight: 1280,
-            useWebWorker: true
-          });
-        }
+      const file = e.target.files[0];
+      setStatusPreviewFile(file);
+      setStatusPreviewUrl(URL.createObjectURL(file));
+      setStatusCaption('');
+    }
+  };
 
-        const formData = new FormData();
-        formData.append('file', fileToUpload);
+  const cancelStatusUpload = () => {
+    setStatusPreviewFile(null);
+    if (statusPreviewUrl) URL.revokeObjectURL(statusPreviewUrl);
+    setStatusPreviewUrl(null);
+    setStatusCaption('');
+  };
 
-        const mediaRes = await api.post('/media/upload', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+  const submitStatus = async () => {
+    if (!statusPreviewFile) return;
+    try {
+      setIsUploadingStatus(true);
+      
+      let fileToUpload = statusPreviewFile;
+      const isVideo = statusPreviewFile.type.startsWith('video/');
+      
+      if (!isVideo) {
+        fileToUpload = await imageCompression(statusPreviewFile, {
+          maxSizeMB: 1,
+          maxWidthOrHeight: 1280,
+          useWebWorker: true
         });
-
-        await api.post('/status', {
-          senderId: username,
-          mediaUrl: mediaRes.data.url,
-          mediaType: isVideo ? 'video' : 'image',
-          caption: ''
-        });
-
-        fetchChatsAndProfiles();
-        socket.emit('new-status', { senderId: username });
-      } catch (error) {
-        console.error('Status upload failed:', error);
-        alert('Failed to post status');
-      } finally {
-        setIsUploadingStatus(false);
       }
+
+      const formData = new FormData();
+      formData.append('file', fileToUpload);
+
+      const mediaRes = await api.post('/media/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      await api.post('/status', {
+        senderId: username,
+        mediaUrl: mediaRes.data.url,
+        mediaType: isVideo ? 'video' : 'image',
+        caption: statusCaption
+      });
+
+      fetchChatsAndProfiles();
+      socket.emit('new-status', { senderId: username });
+      cancelStatusUpload();
+    } catch (error) {
+      console.error('Status upload failed:', error);
+      alert('Failed to post status');
+    } finally {
+      setIsUploadingStatus(false);
     }
   };
 
@@ -299,7 +325,50 @@ export default function Inbox() {
             )
           ) : (
             <div className="updates-tab">
-              <div className="status-item my-status">
+              
+              {/* Status Preview Modal */}
+              {statusPreviewFile && (
+                <div className="status-viewer-overlay">
+                  <div className="status-upload-modal glass-panel glowing-border">
+                    <div className="drawer-header">
+                      <h3>Preview Status</h3>
+                      <button className="icon-button" onClick={cancelStatusUpload} disabled={isUploadingStatus}>
+                        <X size={20} />
+                      </button>
+                    </div>
+                    <div className="status-preview-media">
+                      {statusPreviewFile.type.startsWith('video/') ? (
+                        <video src={statusPreviewUrl!} controls playsInline className="preview-element" />
+                      ) : (
+                        <img src={statusPreviewUrl!} alt="Preview" className="preview-element" />
+                      )}
+                    </div>
+                    <div className="status-caption-input">
+                      <input 
+                        type="text" 
+                        placeholder="Add a caption..." 
+                        value={statusCaption}
+                        onChange={(e) => setStatusCaption(e.target.value)}
+                        disabled={isUploadingStatus}
+                      />
+                    </div>
+                    <div className="drawer-footer">
+                      <button className="primary-btn full-width" onClick={submitStatus} disabled={isUploadingStatus}>
+                        {isUploadingStatus ? 'Uploading...' : 'Send Status'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="status-item my-status" onClick={() => {
+                const myStatusData = statuses.find(s => s.senderId === username);
+                if (myStatusData && myStatusData.statuses.length > 0) {
+                  setActiveStatusViewer(myStatusData);
+                } else {
+                  document.getElementById('upload-status')?.click();
+                }
+              }}>
                 <input
                   type="file"
                   id="upload-status"
@@ -307,18 +376,26 @@ export default function Inbox() {
                   onChange={handleStatusUpload}
                   style={{ display: 'none' }}
                   disabled={isUploadingStatus}
+                  onClick={(e) => e.stopPropagation()}
                 />
-                <label htmlFor="upload-status" className="avatar status-ring my-status-ring">
+                <div className={`avatar status-ring ${statuses.find(s => s.senderId === username) ? 'unread' : 'my-status-ring'}`}>
                   {profilePicUrl ? (
                     <img src={profilePicUrl} alt="Me" />
                   ) : (
                     <div className="avatar-placeholder">{username?.charAt(0).toUpperCase()}</div>
                   )}
-                  <div className="add-status-icon">+</div>
-                </label>
+                  <label 
+                    htmlFor="upload-status" 
+                    className="add-status-icon" 
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    +
+                  </label>
+                </div>
                 <div className="status-info">
                   <h3>My Status</h3>
-                  <p>{isUploadingStatus ? 'Uploading...' : 'Tap to add status update'}</p>
+                  <p>{statuses.find(s => s.senderId === username) ? 'Tap to view your status' : 'Tap to add status update'}</p>
                 </div>
               </div>
               
@@ -425,10 +502,11 @@ export default function Inbox() {
         </div>
       </div>
 
-      {activeStatusViewer && (
+      {activeStatusViewer && username && (
         <StatusViewer 
           userStatuses={activeStatusViewer} 
           profilePicUrl={profiles[activeStatusViewer.senderId]?.profilePicUrl || undefined}
+          username={username}
           onClose={() => setActiveStatusViewer(null)} 
         />
       )}
