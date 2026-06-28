@@ -2,59 +2,65 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const multer = require('multer');
-const { GridFsStorage } = require('multer-gridfs-storage');
-const Grid = require('gridfs-stream');
+const stream = require('stream');
 require('dotenv').config();
 
-// Create mongo connection
-const conn = mongoose.createConnection(process.env.MONGODB_URI);
-
-let gfs;
-let gridfsBucket;
-
-conn.once('open', () => {
-  gridfsBucket = new mongoose.mongo.GridFSBucket(conn.db, {
-    bucketName: 'uploads'
-  });
-  gfs = Grid(conn.db, mongoose.mongo);
-  gfs.collection('uploads');
-});
-
-// Create storage engine
-const storage = new GridFsStorage({
-  url: process.env.MONGODB_URI,
-  file: (req, file) => {
-    return new Promise((resolve, reject) => {
-      const filename = `${Date.now()}_${file.originalname}`;
-      const fileInfo = {
-        filename: filename,
-        bucketName: 'uploads'
-      };
-      resolve(fileInfo);
-    });
-  }
-});
-const upload = multer({ storage });
+// Use memory storage for reliable uploads
+const upload = multer({ storage: multer.memoryStorage() });
 
 // @route POST /api/media/upload
-// @desc  Uploads file to DB
+// @desc  Uploads file to DB using native GridFSBucket
 router.post('/upload', upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  // Return the URL that can be used to fetch this file
-  const fileUrl = `${req.protocol}://${req.get('host')}/api/media/${req.file.id}`;
-  res.json({ url: fileUrl, fileId: req.file.id });
+
+  const db = mongoose.connection.db;
+  if (!db) {
+    return res.status(500).json({ error: 'Database not connected yet' });
+  }
+
+  const bucket = new mongoose.mongo.GridFSBucket(db, {
+    bucketName: 'uploads'
+  });
+
+  const filename = `${Date.now()}_${req.file.originalname}`;
+  
+  const uploadStream = bucket.openUploadStream(filename, {
+    contentType: req.file.mimetype
+  });
+
+  const bufferStream = new stream.PassThrough();
+  bufferStream.end(req.file.buffer);
+  
+  bufferStream.pipe(uploadStream)
+    .on('error', (error) => {
+      console.error('GridFS Upload Error:', error);
+      res.status(500).json({ error: 'Upload failed' });
+    })
+    .on('finish', () => {
+      const fileUrl = `${req.protocol}://${req.get('host')}/api/media/${uploadStream.id}`;
+      res.json({ url: fileUrl, fileId: uploadStream.id });
+    });
 });
 
 // @route GET /api/media/:id
 // @desc  Display single file
 router.get('/:id', async (req, res) => {
   try {
+    const db = mongoose.connection.db;
+    if (!db) {
+      return res.status(500).json({ error: 'Database not connected yet' });
+    }
+
+    const bucket = new mongoose.mongo.GridFSBucket(db, {
+      bucketName: 'uploads'
+    });
+
     const fileId = new mongoose.Types.ObjectId(req.params.id);
     
     // Check if file exists
-    const cursor = gridfsBucket.find({ _id: fileId });
+    const cursor = bucket.find({ _id: fileId });
     const files = await cursor.toArray();
     
     if (!files || files.length === 0) {
@@ -66,7 +72,7 @@ router.get('/:id', async (req, res) => {
     res.set('Content-Type', file.contentType);
     res.set('Content-Disposition', `inline; filename="${file.filename}"`);
     
-    const readstream = gridfsBucket.openDownloadStream(file._id);
+    const readstream = bucket.openDownloadStream(file._id);
     readstream.pipe(res);
   } catch (err) {
     res.status(404).json({ error: 'Not found' });
