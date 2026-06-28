@@ -9,7 +9,8 @@ router.get('/:username', async (req, res) => {
     const { username } = req.params;
 
     // 1. Get all unique participants from user's chats
-    const chats = await Chat.find({ participants: username });
+    const regexUsername = new RegExp(`^${username}$`, 'i');
+    const chats = await Chat.find({ participants: regexUsername });
     const contactSet = new Set();
     contactSet.add(username); // Always include own statuses
     

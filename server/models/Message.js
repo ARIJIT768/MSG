@@ -10,11 +10,7 @@ const messageSchema = new mongoose.Schema({
   status: { type: String, enum: ['sent', 'delivered', 'read'], default: 'sent' }, // WhatsApp-style status
   reactions: { type: Object, default: {} }, // Map of username -> emoji
   statusReply: { 
-    type: {
-      mediaUrl: String,
-      mediaType: String,
-      caption: String
-    },
+    type: Object,
     default: null
   },
   createdAt: { type: Date, default: Date.now },

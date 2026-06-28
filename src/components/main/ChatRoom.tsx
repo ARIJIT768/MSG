@@ -788,12 +788,7 @@ export default function ChatRoom() {
                 )}
                 {msg.mediaUrl && msg.mediaType === 'audio' && (
                   <div className="media-content audio-content" style={{ marginTop: msg.text ? '8px' : '0' }}>
-                    <audio
-                      src={msg.mediaUrl}
-                      controls
-                      preload="metadata"
-                      style={{ width: '220px', height: '40px' }}
-                    />
+                    <VoiceNotePlayer src={msg.mediaUrl} />
                   </div>
                 )}
                 {msg.text && msg.mediaType !== 'audio' && <p>{msg.text}</p>}
