@@ -14,6 +14,7 @@
   "dependencies": {
     "@capacitor/android": "^8.4.1",
     "@capacitor/core": "^8.4.1",
+    "@capgo/capacitor-updater": "^8.50.1",
     "@types/crypto-js": "^4.2.2",
     "axios": "^1.18.1",
     "browser-image-compression": "^2.0.2",
