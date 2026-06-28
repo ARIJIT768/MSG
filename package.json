@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && npm run build:backend",
+    "build:backend": "cd server && npm install --legacy-peer-deps",
+    "start": "node server/index.js",
     "lint": "oxlint",
     "preview": "vite preview"
   },

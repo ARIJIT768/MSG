@@ -31,6 +31,14 @@ mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('MongoDB connected...'))
   .catch(err => console.error('MongoDB connection error:', err));
 
+// Serve React Frontend (for unified deployment on Render)
+const path = require('path');
+app.use(express.static(path.join(__dirname, '../dist')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../dist', 'index.html'));
+});
+
 // Socket.io Events
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
