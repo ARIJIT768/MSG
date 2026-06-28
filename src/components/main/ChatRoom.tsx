@@ -451,15 +451,22 @@ export default function ChatRoom() {
     }
   };
 
+  const isTypingRef = useRef(false);
+
   const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewMessage(e.target.value);
     
     if (chatId) {
-      socket.emit('typing', { chatId, typer: username });
+      if (!isTypingRef.current) {
+        socket.emit('typing', { chatId, typer: username });
+        isTypingRef.current = true;
+      }
+
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       
       typingTimeoutRef.current = setTimeout(() => {
         socket.emit('stop-typing', { chatId, typer: username });
+        isTypingRef.current = false;
       }, 2000);
     }
   };

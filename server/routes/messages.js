@@ -15,6 +15,7 @@ router.get('/:chatId', async (req, res) => {
       mediaUrl: msg.mediaUrl,
       mediaType: msg.mediaType,
       replyTo: msg.replyTo ? msg.replyTo.toString() : null,
+      statusReply: msg.statusReply || null,
       status: msg.status || 'sent',
       reactions: msg.reactions || {},
       createdAt: msg.createdAt
