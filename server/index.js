@@ -64,19 +64,57 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Handle delivered receipts
+  socket.on('mark-delivered', async ({ chatId, readerId }) => {
+    try {
+      await Message.updateMany(
+        { chatId, senderId: { $ne: readerId }, status: 'sent' },
+        { $set: { status: 'delivered' } }
+      );
+      io.to(chatId).emit('messages-delivered', { chatId, readerId });
+    } catch (err) {
+      console.error('Error marking messages as delivered:', err);
+    }
+  });
+
   // Handle read receipts
   socket.on('mark-read', async ({ chatId, readerId }) => {
     try {
-      // Update all messages in this chat where the sender is NOT the reader
       await Message.updateMany(
-        { chatId, senderId: { $ne: readerId }, isRead: false },
-        { $set: { isRead: true } }
+        { chatId, senderId: { $ne: readerId }, status: { $ne: 'read' } },
+        { $set: { status: 'read' } }
       );
-      
-      // Broadcast back to the room so the sender can see the read receipts
       io.to(chatId).emit('messages-read', { chatId, readerId });
     } catch (err) {
       console.error('Error marking messages as read:', err);
+    }
+  });
+
+  // Handle emoji reactions
+  socket.on('add-reaction', async ({ messageId, chatId, username, emoji }) => {
+    try {
+      const message = await Message.findById(messageId);
+      if (message) {
+        if (!message.reactions) message.reactions = {};
+        
+        // If clicking the same emoji, remove it (toggle)
+        if (message.reactions[username] === emoji) {
+          delete message.reactions[username];
+        } else {
+          message.reactions[username] = emoji;
+        }
+        
+        // Mongoose needs to know the mixed object changed
+        message.markModified('reactions');
+        await message.save();
+
+        io.to(chatId).emit('message-reaction-updated', { 
+          messageId, 
+          reactions: message.reactions 
+        });
+      }
+    } catch (err) {
+      console.error('Error adding reaction:', err);
     }
   });
 

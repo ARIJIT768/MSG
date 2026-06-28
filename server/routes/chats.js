@@ -18,7 +18,7 @@ router.get('/:username', async (req, res) => {
               $match: {
                 $expr: { $eq: ['$chatId', '$$chatId'] },
                 senderId: { $ne: username },
-                isRead: false
+                status: { $ne: 'read' }
               }
             },
             { $count: 'unreadCount' }

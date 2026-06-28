@@ -11,10 +11,10 @@ type Message = {
   id: string;
   senderId: string;
   text: string;
-  mediaUrl?: string;
   mediaType?: 'image' | 'video';
   replyTo?: string | null;
-  isRead?: boolean;
+  status?: 'sent' | 'delivered' | 'read';
+  reactions?: Record<string, string>;
   createdAt: any;
 };
 
@@ -52,10 +52,22 @@ export default function ChatRoom() {
   const [uploadProgress, setUploadProgress] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [replyToMsgId, setReplyToMsgId] = useState<string | null>(null);
+  const [contextMenuMsgId, setContextMenuMsgId] = useState<string | null>(null);
 
   const sharedKey = getSharedKey(username || '', partnerUsername || '');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pressTimer = useRef<any>(null);
+
+  const handlePressStart = (msgId: string) => {
+    pressTimer.current = setTimeout(() => {
+      setContextMenuMsgId(msgId);
+    }, 450); // 450ms long press
+  };
+
+  const handlePressEnd = () => {
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -122,18 +134,36 @@ export default function ChatRoom() {
       }
     });
 
-    // Listen for read receipts
-    socket.on('messages-read', ({ chatId: readChatId, readerId }) => {
-      if (readChatId === chatId && readerId !== username) {
+    // Listen for delivered receipts
+    socket.on('messages-delivered', ({ chatId: deliveredChatId, readerId }) => {
+      if (deliveredChatId === chatId && readerId !== username) {
         setMessages(prev => prev.map(m => 
-          m.senderId === username && !m.isRead ? { ...m, isRead: true } : m
+          m.senderId === username && m.status === 'sent' ? { ...m, status: 'delivered' } : m
         ));
       }
     });
 
+    // Listen for read receipts
+    socket.on('messages-read', ({ chatId: readChatId, readerId }) => {
+      if (readChatId === chatId && readerId !== username) {
+        setMessages(prev => prev.map(m => 
+          m.senderId === username && m.status !== 'read' ? { ...m, status: 'read' } : m
+        ));
+      }
+    });
+
+    // Listen for reactions
+    socket.on('message-reaction-updated', ({ messageId, reactions }) => {
+      setMessages(prev => prev.map(m => 
+        m.id === messageId ? { ...m, reactions } : m
+      ));
+    });
+
     return () => {
       socket.off('receive-message');
+      socket.off('messages-delivered');
       socket.off('messages-read');
+      socket.off('message-reaction-updated');
     };
   }, [chatId, sharedKey]);
 
@@ -298,7 +328,39 @@ export default function ChatRoom() {
 
           return (
             <div key={msg.id} className={`message-wrapper ${isMine ? 'mine' : 'theirs'}`}>
-              <div className={`message-bubble ${isMine ? 'my-bubble' : 'their-bubble'}`}>
+              <div 
+                className={`message-bubble ${isMine ? 'my-bubble' : 'their-bubble'}`}
+                onMouseDown={() => handlePressStart(msg.id)}
+                onMouseUp={handlePressEnd}
+                onMouseLeave={handlePressEnd}
+                onTouchStart={() => handlePressStart(msg.id)}
+                onTouchEnd={handlePressEnd}
+              >
+                
+                {contextMenuMsgId === msg.id && (
+                  <div className="context-menu-overlay" onClick={(e) => { e.stopPropagation(); setContextMenuMsgId(null); }}>
+                    <div className={`context-menu ${isMine ? 'context-right' : 'context-left'}`} onClick={e => e.stopPropagation()}>
+                      <div className="reaction-picker">
+                        {['👍', '❤️', '😂', '😲', '😢', '🙏'].map(emoji => (
+                          <button key={emoji} className="reaction-btn" onClick={() => {
+                            socket.emit('add-reaction', { messageId: msg.id, chatId, username, emoji });
+                            setContextMenuMsgId(null);
+                          }}>
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="context-divider"></div>
+                      <button className="context-action-btn" onClick={() => {
+                        setReplyToMsgId(msg.id);
+                        setContextMenuMsgId(null);
+                      }}>
+                        <Reply size={16} style={{ marginRight: 8 }} /> Reply
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {repliedMsg && (
                   <div className="replied-message-box" onClick={() => {
                     const el = document.getElementById(`msg-${repliedMsg!.id}`);
@@ -335,6 +397,14 @@ export default function ChatRoom() {
                 )}
                 {msg.text && <p>{msg.text}</p>}
                 
+                {(msg.reactions && Object.keys(msg.reactions).length > 0) && (
+                  <div className={`reactions-container ${isMine ? 'reactions-mine' : 'reactions-theirs'}`}>
+                    {Object.entries(msg.reactions).map(([usr, emj]) => (
+                      <span key={usr} className="reaction-pill">{emj}</span>
+                    ))}
+                  </div>
+                )}
+                
                 <div className="message-footer" id={`msg-${msg.id}`}>
                   <span className="message-time">
                     {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -342,13 +412,11 @@ export default function ChatRoom() {
                   
                   {isMine && (
                     <span className="read-receipt">
-                      {msg.isRead ? <CheckCheck size={14} color="#34B7F1" /> : <Check size={14} color="rgba(255,255,255,0.5)" />}
+                      {msg.status === 'read' ? <CheckCheck size={14} color="#34B7F1" /> : 
+                       msg.status === 'delivered' ? <CheckCheck size={14} color="rgba(255,255,255,0.7)" /> : 
+                       <Check size={14} color="rgba(255,255,255,0.5)" />}
                     </span>
                   )}
-                  
-                  <button className="reply-btn-inline" onClick={() => setReplyToMsgId(msg.id)}>
-                    <Reply size={12} /> Reply
-                  </button>
                 </div>
               </div>
             </div>

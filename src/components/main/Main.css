@@ -1000,6 +1000,112 @@
   text-overflow: ellipsis;
 }
 
+/* ---- Context Menu (Long Press) ---- */
+.context-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  /* subtle dark overlay just on the message area */
+  background: rgba(0, 0, 0, 0.1); 
+}
+
+.context-menu {
+  position: absolute;
+  top: -65px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+  z-index: 1001;
+  animation: slideUp 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+.context-right {
+  right: 0;
+}
+
+.context-left {
+  left: 0;
+}
+
+.reaction-picker {
+  display: flex;
+  gap: 8px;
+  padding: 4px;
+}
+
+.reaction-btn {
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  transition: transform 0.2s;
+  padding: 4px;
+  line-height: 1;
+}
+
+.reaction-btn:hover {
+  transform: scale(1.3);
+}
+
+.context-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 6px 0;
+}
+
+.context-action-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.context-action-btn:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+/* ---- Reaction Pills on Messages ---- */
+.reactions-container {
+  display: flex;
+  gap: 4px;
+  margin-top: -8px;
+  margin-bottom: -12px;
+  position: relative;
+  z-index: 2;
+}
+
+.reactions-mine {
+  justify-content: flex-end;
+  right: 12px;
+}
+
+.reactions-theirs {
+  justify-content: flex-start;
+  left: 12px;
+}
+
+.reaction-pill {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 2px 6px;
+  font-size: 12px;
+  line-height: 1.2;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  animation: messagePop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
 /* ---- Safe area for notched phones ---- */
 @supports (padding: max(0px)) {
   .sidebar-header {

@@ -15,7 +15,8 @@ router.get('/:chatId', async (req, res) => {
       mediaUrl: msg.mediaUrl,
       mediaType: msg.mediaType,
       replyTo: msg.replyTo ? msg.replyTo.toString() : null,
-      isRead: msg.isRead,
+      status: msg.status || 'sent',
+      reactions: msg.reactions || {},
       createdAt: msg.createdAt
     }));
 
@@ -39,7 +40,8 @@ router.post('/:chatId', async (req, res) => {
       mediaUrl: mediaUrl || null,
       mediaType: mediaType || null,
       replyTo: replyTo || null,
-      isRead: false,
+      status: 'sent',
+      reactions: {},
       createdAt: new Date()
     });
 
@@ -69,7 +71,8 @@ router.post('/:chatId', async (req, res) => {
       mediaUrl: newMessage.mediaUrl,
       mediaType: newMessage.mediaType,
       replyTo: newMessage.replyTo ? newMessage.replyTo.toString() : null,
-      isRead: newMessage.isRead,
+      status: newMessage.status,
+      reactions: newMessage.reactions,
       createdAt: newMessage.createdAt
     });
 

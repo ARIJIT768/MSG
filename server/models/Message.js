@@ -7,7 +7,8 @@ const messageSchema = new mongoose.Schema({
   mediaUrl: { type: String, default: null }, // url to gridfs stream
   mediaType: { type: String, enum: ['image', 'video', null], default: null },
   replyTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null }, // ID of the message being replied to
-  isRead: { type: Boolean, default: false }, // Read receipt status
+  status: { type: String, enum: ['sent', 'delivered', 'read'], default: 'sent' }, // WhatsApp-style status
+  reactions: { type: Object, default: {} }, // Map of username -> emoji
   createdAt: { type: Date, default: Date.now },
 });
 
