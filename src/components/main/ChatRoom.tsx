@@ -3,9 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { api, socket } from '../../config/api';
 import CryptoJS from 'crypto-js';
-import { ArrowLeft, Send, Shield, Paperclip, X, Loader2, Reply, Check, CheckCheck, Phone, PhoneOff, PhoneCall, Mic } from 'lucide-react';
+import { ArrowLeft, Send, Shield, Paperclip, X, Loader2, Reply, Check, CheckCheck, Phone, PhoneOff, PhoneCall, Mic, Video, VideoOff } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { Microphone } from '@dimer47/capacitor-microphone';
+import { Camera } from '@capacitor/camera';
 import './Main.css';
 
 type Message = {
@@ -72,10 +73,13 @@ export default function ChatRoom() {
 
   // WebRTC State
   const [isCalling, setIsCalling] = useState(false);
-  const [incomingCall, setIncomingCall] = useState<{ caller: string; offer: any } | null>(null);
+  const [incomingCall, setIncomingCall] = useState<{ caller: string; offer: any; type: 'audio' | 'video' } | null>(null);
+  const [callType, setCallType] = useState<'audio' | 'video' | null>(null);
   const [inCall, setInCall] = useState(false);
   const localAudioRef = useRef<HTMLAudioElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const localStream = useRef<MediaStream | null>(null);
 
@@ -672,9 +676,14 @@ export default function ChatRoom() {
           </div>
         </div>
         {!inCall && !isCalling && (
-          <button className="icon-button call-btn" onClick={startCall} aria-label="Voice Call">
-            <Phone size={20} />
-          </button>
+          <div className="header-actions" style={{ display: 'flex', gap: '8px' }}>
+            <button className="icon-button call-btn" onClick={() => startCall('audio')} aria-label="Voice Call">
+              <Phone size={20} />
+            </button>
+            <button className="icon-button call-btn" onClick={() => startCall('video')} aria-label="Video Call">
+              <Video size={20} />
+            </button>
+          </div>
         )}
       </div>
 

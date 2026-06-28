@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@capacitor/android": "^8.4.1",
+    "@capacitor/camera": "^8.2.0",
     "@capacitor/core": "^8.4.1",
     "@capgo/capacitor-updater": "^8.50.1",
     "@dimer47/capacitor-microphone": "^8.0.0",
