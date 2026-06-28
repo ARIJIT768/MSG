@@ -4,9 +4,10 @@ const path = require('path');
 const fs = require('fs');
 const archiver = require('archiver');
 const crypto = require('crypto');
+const os = require('os');
 
 const distPath = path.join(__dirname, '../../dist');
-const zipPath = path.join(__dirname, '../latest-update.zip');
+const zipPath = path.join(os.tmpdir(), 'latest-update.zip');
 let currentVersion = '1.0.0'; // We will base this on a hash of the dist folder
 
 // Generate a zip file of the dist folder and compute its hash to act as the version
@@ -57,7 +58,10 @@ function generateUpdateZip() {
 }
 
 // Generate it on startup
-generateUpdateZip().catch(err => console.error('Failed to generate OTA zip on startup:', err));
+const startupResult = generateUpdateZip();
+if (startupResult && startupResult.catch) {
+  startupResult.catch(err => console.error('Failed to generate OTA zip on startup:', err));
+}
 
 // Route to check for the latest version
 router.get('/check', (req, res) => {
@@ -80,10 +84,13 @@ router.get('/download', (req, res) => {
 // Route to manually trigger a rebuild of the zip (if needed)
 router.post('/trigger', async (req, res) => {
   try {
-    await generateUpdateZip();
+    const result = generateUpdateZip();
+    if (result && result.catch) {
+      await result;
+    }
     res.json({ success: true, version: currentVersion });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to generate update' });
+    res.status(500).json({ error: 'Failed to generate update', details: error ? error.toString() : 'Unknown error' });
   }
 });
 
