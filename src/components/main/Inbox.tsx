@@ -35,8 +35,9 @@ export interface ChatRoom {
 export interface StatusItem {
   id: string;
   mediaUrl: string;
-  mediaType: string;
-  caption: string;
+  mediaType: 'image' | 'video' | 'text';
+  caption?: string;
+  viewers: string[];
   createdAt: string;
   expiresAt: string;
 }
@@ -179,11 +180,28 @@ export default function Inbox() {
       if (username) fetchChatsAndProfiles();
     });
 
+    socket.on('status-viewed', (data: { statusId: string, viewer: string }) => {
+      setStatuses(prev => {
+        const updated = [...prev];
+        for (let userStatuses of updated) {
+          const s = userStatuses.statuses.find(s => s.id === data.statusId);
+          if (s) {
+            if (!s.viewers.includes(data.viewer)) {
+              s.viewers.push(data.viewer);
+            }
+            break;
+          }
+        }
+        return updated;
+      });
+    });
+
     return () => {
       socket.off('chat-updated');
       socket.off('user-status-changed');
       socket.off('user-new-status');
       socket.off('status-deleted');
+      socket.off('status-viewed');
     };
   }, [username]);
 

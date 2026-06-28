@@ -1542,3 +1542,56 @@
 .status-caption-input input:focus {
   border-color: var(--primary);
 }
+
+/* Status Viewers List */
+.status-viewers-btn {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: #fff;
+  z-index: 20;
+  cursor: pointer;
+  background: rgba(0,0,0,0.5);
+  padding: 8px 16px;
+  border-radius: 20px;
+}
+.status-viewers-btn span {
+  font-size: 12px;
+  font-weight: 600;
+}
+.viewers-modal-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.viewers-modal-content {
+  background: var(--bg-card);
+  border-radius: 20px 20px 0 0;
+  max-height: 70%;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease;
+}
+.viewers-list {
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.viewer-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-primary);
+  font-weight: 500;
+}

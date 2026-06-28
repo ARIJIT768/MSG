@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const Message = require('./models/Message');
+const Chat = require('./models/Chat');
 const User = require('./models/User');
 const cors = require('cors');
 const http = require('http');
@@ -211,6 +212,11 @@ io.on('connection', (socket) => {
   // Handle status deletion
   socket.on('delete-status', (statusId) => {
     io.emit('status-deleted', statusId);
+  });
+
+  // Handle status view
+  socket.on('status-viewed', (data) => {
+    io.emit('status-viewed', data);
   });
 
   socket.on('disconnect', async () => {

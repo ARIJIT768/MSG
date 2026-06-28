@@ -20,6 +20,10 @@ const StatusSchema = new mongoose.Schema({
     type: Date,
     default: () => new Date(+new Date() + 24*60*60*1000), // 24 hours from now
     index: { expires: 0 } // TTL index: automatically deletes document when current time >= expiresAt
+  },
+  viewers: {
+    type: [String],
+    default: []
   }
 }, { timestamps: true });
 

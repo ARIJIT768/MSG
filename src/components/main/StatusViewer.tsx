@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2 } from 'lucide-react';
+import { X, Trash2, Eye } from 'lucide-react';
 import type { UserStatuses } from './Inbox';
 import { api, socket } from '../../config/api';
 
@@ -13,9 +13,21 @@ interface StatusViewerProps {
 export default function StatusViewer({ userStatuses, profilePicUrl, username, onClose }: StatusViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [showViewersModal, setShowViewersModal] = useState(false);
   
   const currentStatus = userStatuses.statuses[currentIndex];
   const DURATION = 5000; // 5 seconds per status
+
+  // Handle Marking as Viewed
+  useEffect(() => {
+    if (userStatuses.senderId !== username && !currentStatus.viewers.includes(username)) {
+      api.post(`/status/${currentStatus.id}/view`, { username })
+        .then(() => {
+          socket.emit('status-viewed', { statusId: currentStatus.id, viewer: username });
+        })
+        .catch(err => console.error('Failed to mark status as viewed', err));
+    }
+  }, [currentStatus.id, userStatuses.senderId, username, currentStatus.viewers]);
 
   useEffect(() => {
     let start = Date.now();
@@ -23,7 +35,7 @@ export default function StatusViewer({ userStatuses, profilePicUrl, username, on
     let isPaused = false;
 
     const tick = () => {
-      if (isPaused) return;
+      if (isPaused || showViewersModal) return;
       const elapsed = Date.now() - start;
       const currentProgress = (elapsed / DURATION) * 100;
       
@@ -45,7 +57,7 @@ export default function StatusViewer({ userStatuses, profilePicUrl, username, on
     animationFrameId = requestAnimationFrame(tick);
 
     return () => cancelAnimationFrame(animationFrameId);
-  }, [currentIndex, userStatuses.statuses.length, onClose]);
+  }, [currentIndex, userStatuses.statuses.length, onClose, showViewersModal]);
 
   const handleNext = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -153,9 +165,52 @@ export default function StatusViewer({ userStatuses, profilePicUrl, username, on
           </div>
         )}
 
+        {/* Viewers Eye Icon (Owner Only) */}
+        {userStatuses.senderId === username && (
+          <div className="status-viewers-btn" onClick={(e) => {
+            e.stopPropagation();
+            setShowViewersModal(true);
+          }}>
+            <Eye size={20} />
+            <span>{currentStatus.viewers.length}</span>
+          </div>
+        )}
+
         {/* Navigation Tap Zones */}
-        <div className="status-tap-zone prev" onClick={handlePrev} />
-        <div className="status-tap-zone next" onClick={handleNext} />
+        {!showViewersModal && (
+          <>
+            <div className="status-tap-zone prev" onClick={handlePrev} />
+            <div className="status-tap-zone next" onClick={handleNext} />
+          </>
+        )}
+        
+        {/* Viewers Modal */}
+        {showViewersModal && (
+          <div className="viewers-modal-overlay" onClick={() => setShowViewersModal(false)}>
+            <div className="viewers-modal-content glass-panel" onClick={e => e.stopPropagation()}>
+              <div className="drawer-header" style={{ padding: '16px' }}>
+                <h3>Viewed by {currentStatus.viewers.length}</h3>
+                <button className="icon-button" onClick={() => setShowViewersModal(false)}>
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="viewers-list">
+                {currentStatus.viewers.length === 0 ? (
+                  <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>No views yet</p>
+                ) : (
+                  currentStatus.viewers.map(viewer => (
+                    <div key={viewer} className="viewer-item">
+                      <div className="avatar small-avatar">
+                        <div className="avatar-placeholder">{viewer.charAt(0).toUpperCase()}</div>
+                      </div>
+                      <span>{viewer}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

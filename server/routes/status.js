@@ -45,6 +45,7 @@ router.get('/:username', async (req, res) => {
         mediaUrl: status.mediaUrl,
         mediaType: status.mediaType,
         caption: status.caption,
+        viewers: status.viewers || [],
         createdAt: status.createdAt,
         expiresAt: status.expiresAt
       });
@@ -110,6 +111,29 @@ router.delete('/:id', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Delete status error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Mark status as viewed
+router.post('/:id/view', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username } = req.body;
+
+    if (!username) return res.status(400).json({ error: 'username is required' });
+
+    const status = await Status.findByIdAndUpdate(
+      id,
+      { $addToSet: { viewers: username } },
+      { new: true }
+    );
+
+    if (!status) return res.status(404).json({ error: 'Status not found' });
+
+    res.json({ success: true, viewers: status.viewers });
+  } catch (error) {
+    console.error('View status error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
