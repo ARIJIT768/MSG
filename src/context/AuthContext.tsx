@@ -6,7 +6,7 @@ type AuthContextType = {
   profilePicUrl: string | null;
   isRegistered: boolean;
   isAuthenticated: boolean;
-  login: (pin: string) => Promise<boolean>;
+  login: (username: string, pin: string) => Promise<boolean>;
   register: (username: string, pin: string, file?: File | null) => Promise<boolean>;
   logout: () => void;
   resetAllData: () => Promise<void>;
@@ -36,14 +36,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = async (pin: string) => {
+  const login = async (usernameInput: string, pin: string) => {
     try {
-      const storedUser = localStorage.getItem('msg_username');
-      if (!storedUser) return false;
-      
-      const res = await api.post('/auth/login', { username: storedUser, pin });
+      const res = await api.post('/auth/login', { username: usernameInput, pin });
       if (res.data.success) {
         setUsername(res.data.user.username);
+        localStorage.setItem('msg_username', res.data.user.username);
+        setIsRegistered(true);
         if (res.data.user.profilePicUrl) {
           setProfilePicUrl(res.data.user.profilePicUrl);
           localStorage.setItem('msg_profilePic', res.data.user.profilePicUrl);
