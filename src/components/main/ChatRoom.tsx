@@ -493,7 +493,7 @@ export default function ChatRoom() {
             headers: { 'Content-Type': 'multipart/form-data' }
           });
           
-          const audioUrl = res.data.fileUrl;
+          const audioUrl = res.data.url;
           const tempId = Date.now().toString();
           const encryptedText = encryptMessage('🎤 Voice Note', sharedKey);
           
