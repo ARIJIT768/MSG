@@ -73,6 +73,22 @@ io.on('connection', (socket) => {
   // Handle incoming messages (Zero Latency Mode)
   socket.on('send-message', async (messageData) => {
     try {
+      // Determine if recipient is online to set status to 'delivered'
+      let initialStatus = 'sent';
+      const chat = await Chat.findById(messageData.chatId);
+      if (chat) {
+        const recipientUsername = chat.participants.find(p => p !== messageData.senderId);
+        if (recipientUsername) {
+          // Find if recipient is online
+          for (let [id, user] of connectedUsers.entries()) {
+            if (user === recipientUsername) {
+              initialStatus = 'delivered';
+              break;
+            }
+          }
+        }
+      }
+
       // 1. Save to DB first
       const newMsg = new Message({
         chatId: messageData.chatId,
@@ -81,12 +97,23 @@ io.on('connection', (socket) => {
         mediaUrl: messageData.mediaUrl,
         mediaType: messageData.mediaType,
         replyTo: messageData.replyTo,
-        status: 'sent'
+        status: initialStatus
       });
       await newMsg.save();
 
       // 2. Broadcast to room immediately
-      io.to(messageData.chatId).emit('receive-message', newMsg);
+      io.to(messageData.chatId).emit('receive-message', {
+        id: newMsg._id.toString(),
+        tempId: messageData.tempId, // Send back tempId so sender can replace optimistic UI
+        chatId: newMsg.chatId,
+        senderId: newMsg.senderId,
+        text: newMsg.text,
+        mediaUrl: newMsg.mediaUrl,
+        mediaType: newMsg.mediaType,
+        replyTo: newMsg.replyTo,
+        status: newMsg.status,
+        createdAt: newMsg.createdAt
+      });
       
       // 3. Update Inbox lists for all
       io.emit('chat-updated', {

@@ -139,7 +139,15 @@ export default function ChatRoom() {
     socket.on('receive-message', (msg: any) => {
       if (msg.chatId === chatId) {
         setMessages(prev => {
+          // If this is a message we just sent optimistically, replace the temp one
+          const existingTempIndex = prev.findIndex(m => m.id === msg.tempId);
+          if (existingTempIndex !== -1) {
+            const newMsgs = [...prev];
+            newMsgs[existingTempIndex] = { ...msg, text: decryptMessage(msg.text, sharedKey) };
+            return newMsgs;
+          }
           if (prev.find(m => m.id === msg.id)) return prev;
+          
           return [...prev, {
             ...msg,
             text: decryptMessage(msg.text, sharedKey)
@@ -401,6 +409,7 @@ export default function ChatRoom() {
       // 2. Fire and forget via socket (Zero Latency)
       socket.emit('send-message', {
         chatId,
+        tempId,
         senderId: username,
         text: encryptedText,
         mediaUrl: uploadedMediaUrl,
