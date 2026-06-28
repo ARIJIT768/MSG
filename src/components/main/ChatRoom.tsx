@@ -331,6 +331,7 @@ export default function ChatRoom() {
             <div key={msg.id} className={`message-wrapper ${isMine ? 'mine' : 'theirs'}`}>
               <div 
                 className={`message-bubble ${isMine ? 'my-bubble' : 'their-bubble'}`}
+                onContextMenu={(e) => e.preventDefault()}
                 onMouseDown={() => handlePressStart(msg.id)}
                 onMouseUp={handlePressEnd}
                 onMouseLeave={handlePressEnd}
