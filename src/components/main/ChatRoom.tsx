@@ -5,7 +5,7 @@ import { api, socket } from '../../config/api';
 import CryptoJS from 'crypto-js';
 import { ArrowLeft, Send, Shield, Paperclip, X, Loader2, Reply, Check, CheckCheck, Phone, PhoneOff, PhoneCall, Mic } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
-import { VoiceRecorder } from 'capacitor-voice-recorder';
+import { Microphone } from '@dimer47/capacitor-microphone';
 import './Main.css';
 
 type Message = {
@@ -275,8 +275,8 @@ export default function ChatRoom() {
   const initWebRTC = async () => {
     try {
       try {
-        const perm = await VoiceRecorder.requestAudioRecordingPermission();
-        if (!perm.value) {
+        const perm = await Microphone.requestPermissions();
+        if (perm.microphone !== 'granted') {
           console.warn('Native microphone permission denied');
         }
       } catch (e) {
@@ -507,8 +507,8 @@ export default function ChatRoom() {
   const startRecording = async () => {
     try {
       try {
-        const perm = await VoiceRecorder.requestAudioRecordingPermission();
-        if (!perm.value) {
+        const perm = await Microphone.requestPermissions();
+        if (perm.microphone !== 'granted') {
           console.warn('Native microphone permission denied');
         }
       } catch (e) {
