@@ -379,13 +379,7 @@ export default function ChatRoom() {
 
       const encryptedText = messageText ? encryptMessage(messageText, sharedKey) : '';
 
-      const payload = {
-        senderId: username,
-        text: encryptedText,
-        mediaUrl: uploadedMediaUrl,
-        mediaType: uploadedMediaType,
-        replyTo: replyToMsgId
-      };
+
       
       setReplyToMsgId(null);
 
