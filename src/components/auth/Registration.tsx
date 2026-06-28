@@ -11,7 +11,7 @@ export default function Registration() {
 
   const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
-  const [pfpFile, setPfpFile] = useState<File | Blob | null>(null);
+  const [pfpFile, setPfpFile] = useState<File | null>(null);
   const [pfpPreview, setPfpPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -26,7 +26,7 @@ export default function Registration() {
           useWebWorker: true,
         };
         const compressedFile = await imageCompression(file, options);
-        setPfpFile(compressedFile);
+        setPfpFile(compressedFile as File);
         
         const reader = new FileReader();
         reader.onload = (event) => setPfpPreview(event.target?.result as string);
