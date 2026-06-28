@@ -6,6 +6,8 @@ const messageSchema = new mongoose.Schema({
   text: { type: String, default: '' }, // encrypted string
   mediaUrl: { type: String, default: null }, // url to gridfs stream
   mediaType: { type: String, enum: ['image', 'video', null], default: null },
+  replyTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null }, // ID of the message being replied to
+  isRead: { type: Boolean, default: false }, // Read receipt status
   createdAt: { type: Date, default: Date.now },
 });
 

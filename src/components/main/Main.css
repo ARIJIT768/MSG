@@ -901,6 +901,105 @@
   }
 }
 
+/* ---- Read Receipts & Replies ---- */
+.message-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.read-receipt {
+  display: flex;
+  align-items: center;
+}
+
+.reply-btn-inline {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  padding: 0;
+  margin-left: 4px;
+}
+
+.message-wrapper:hover .reply-btn-inline {
+  opacity: 1;
+}
+
+.replied-message-box {
+  background: rgba(0, 0, 0, 0.15);
+  border-left: 3px solid var(--primary-light);
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.my-bubble .replied-message-box {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: white;
+}
+
+.replied-sender {
+  font-weight: 700;
+  color: var(--primary-light);
+  margin-bottom: 2px;
+}
+
+.my-bubble .replied-sender {
+  color: white;
+}
+
+.replied-text {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.my-bubble .replied-text {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.reply-preview-bar {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  background: rgba(99, 102, 241, 0.08);
+  border-top: 1px solid var(--border-subtle);
+  border-left: 4px solid var(--primary);
+  animation: slideUp 0.25s var(--ease-out-expo) both;
+}
+
+.reply-preview-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.reply-preview-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary-light);
+}
+
+.reply-preview-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ---- Safe area for notched phones ---- */
 @supports (padding: max(0px)) {
   .sidebar-header {
@@ -910,4 +1009,3 @@
     padding-top: max(14px, env(safe-area-inset-top, 14px));
   }
 }
-

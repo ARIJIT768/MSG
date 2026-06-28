@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
+const Message = require('./models/Message');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -61,6 +62,22 @@ io.on('connection', (socket) => {
       lastMessageSender: message.senderId,
       lastMessageTime: message.createdAt
     });
+  });
+
+  // Handle read receipts
+  socket.on('mark-read', async ({ chatId, readerId }) => {
+    try {
+      // Update all messages in this chat where the sender is NOT the reader
+      await Message.updateMany(
+        { chatId, senderId: { $ne: readerId }, isRead: false },
+        { $set: { isRead: true } }
+      );
+      
+      // Broadcast back to the room so the sender can see the read receipts
+      io.to(chatId).emit('messages-read', { chatId, readerId });
+    } catch (err) {
+      console.error('Error marking messages as read:', err);
+    }
   });
 
   socket.on('disconnect', () => {

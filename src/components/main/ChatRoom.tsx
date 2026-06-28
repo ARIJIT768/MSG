@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { api, socket } from '../../config/api';
 import CryptoJS from 'crypto-js';
-import { ArrowLeft, Send, Shield, Paperclip, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Shield, Paperclip, X, Loader2, Reply, Check, CheckCheck } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import './Main.css';
 
@@ -13,6 +13,8 @@ type Message = {
   text: string;
   mediaUrl?: string;
   mediaType?: 'image' | 'video';
+  replyTo?: string | null;
+  isRead?: boolean;
   createdAt: any;
 };
 
@@ -49,6 +51,7 @@ export default function ChatRoom() {
   const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
   const [uploadProgress, setUploadProgress] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [replyToMsgId, setReplyToMsgId] = useState<string | null>(null);
 
   const sharedKey = getSharedKey(username || '', partnerUsername || '');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -83,6 +86,11 @@ export default function ChatRoom() {
         text: decryptMessage(msg.text, sharedKey)
       }));
       setMessages(msgs);
+      
+      // Mark read when opening chat
+      if (msgs.length > 0) {
+        socket.emit('mark-read', { chatId, readerId: username });
+      }
     } catch (err) {
       console.warn('Failed to load messages:', err);
     }
@@ -101,19 +109,31 @@ export default function ChatRoom() {
     socket.on('receive-message', (msg: any) => {
       if (msg.chatId === chatId) {
         setMessages(prev => {
-          // Check if we already added it (we append our own messages instantly on send)
           if (prev.find(m => m.id === msg.id)) return prev;
-          
           return [...prev, {
             ...msg,
             text: decryptMessage(msg.text, sharedKey)
           }];
         });
+        
+        if (msg.senderId !== username) {
+          socket.emit('mark-read', { chatId, readerId: username });
+        }
+      }
+    });
+
+    // Listen for read receipts
+    socket.on('messages-read', ({ chatId: readChatId, readerId }) => {
+      if (readChatId === chatId && readerId !== username) {
+        setMessages(prev => prev.map(m => 
+          m.senderId === username && !m.isRead ? { ...m, isRead: true } : m
+        ));
       }
     });
 
     return () => {
       socket.off('receive-message');
+      socket.off('messages-read');
     };
   }, [chatId, sharedKey]);
 
@@ -201,7 +221,10 @@ export default function ChatRoom() {
         text: encryptedText,
         mediaUrl: uploadedMediaUrl,
         mediaType: uploadedMediaType,
+        replyTo: replyToMsgId
       };
+      
+      setReplyToMsgId(null);
 
       // 1. Save to DB
       const res = await api.post(`/messages/${chatId}`, payload);
@@ -262,9 +285,30 @@ export default function ChatRoom() {
         )}
         {messages.map((msg) => {
           const isMine = msg.senderId === username;
+          
+          let repliedMsg: Message | undefined;
+          let repliedText = '';
+          if (msg.replyTo) {
+            repliedMsg = messages.find(m => m.id === msg.replyTo);
+            if (repliedMsg) {
+              repliedText = repliedMsg.text || 'Media message';
+              if (repliedText.length > 50) repliedText = repliedText.substring(0, 50) + '...';
+            }
+          }
+
           return (
             <div key={msg.id} className={`message-wrapper ${isMine ? 'mine' : 'theirs'}`}>
               <div className={`message-bubble ${isMine ? 'my-bubble' : 'their-bubble'}`}>
+                {repliedMsg && (
+                  <div className="replied-message-box" onClick={() => {
+                    const el = document.getElementById(`msg-${repliedMsg!.id}`);
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }}>
+                    <div className="replied-sender">{repliedMsg.senderId === username ? 'You' : repliedMsg.senderId}</div>
+                    <div className="replied-text">{repliedText}</div>
+                  </div>
+                )}
+                
                 {msg.mediaUrl && msg.mediaType === 'image' && (
                   <div
                     className="media-content"
@@ -290,15 +334,44 @@ export default function ChatRoom() {
                   </div>
                 )}
                 {msg.text && <p>{msg.text}</p>}
-                <span className="message-time">
-                  {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
+                
+                <div className="message-footer" id={`msg-${msg.id}`}>
+                  <span className="message-time">
+                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  
+                  {isMine && (
+                    <span className="read-receipt">
+                      {msg.isRead ? <CheckCheck size={14} color="#34B7F1" /> : <Check size={14} color="rgba(255,255,255,0.5)" />}
+                    </span>
+                  )}
+                  
+                  <button className="reply-btn-inline" onClick={() => setReplyToMsgId(msg.id)}>
+                    <Reply size={12} /> Reply
+                  </button>
+                </div>
               </div>
             </div>
           );
         })}
         <div ref={messagesEndRef} />
       </div>
+
+      {replyToMsgId && (
+        <div className="reply-preview-bar glass-panel">
+          <div className="reply-preview-content">
+            <span className="reply-preview-label">
+              Replying to {messages.find(m => m.id === replyToMsgId)?.senderId === username ? 'yourself' : messages.find(m => m.id === replyToMsgId)?.senderId}
+            </span>
+            <span className="reply-preview-text">
+              {messages.find(m => m.id === replyToMsgId)?.text || 'Media'}
+            </span>
+          </div>
+          <button className="icon-button" onClick={() => setReplyToMsgId(null)}>
+            <X size={18} />
+          </button>
+        </div>
+      )}
 
       {mediaPreview && (
         <div className="media-preview-bar glass-panel">

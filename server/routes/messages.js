@@ -8,13 +8,14 @@ router.get('/:chatId', async (req, res) => {
   try {
     const { chatId } = req.params;
     const messages = await Message.find({ chatId }).sort({ createdAt: 1 });
-    
     const formattedMessages = messages.map(msg => ({
       id: msg._id.toString(),
       senderId: msg.senderId,
       text: msg.text,
       mediaUrl: msg.mediaUrl,
       mediaType: msg.mediaType,
+      replyTo: msg.replyTo ? msg.replyTo.toString() : null,
+      isRead: msg.isRead,
       createdAt: msg.createdAt
     }));
 
@@ -29,7 +30,7 @@ router.get('/:chatId', async (req, res) => {
 router.post('/:chatId', async (req, res) => {
   try {
     const { chatId } = req.params;
-    const { senderId, text, mediaUrl, mediaType } = req.body;
+    const { senderId, text, mediaUrl, mediaType, replyTo } = req.body;
 
     const newMessage = new Message({
       chatId,
@@ -37,6 +38,8 @@ router.post('/:chatId', async (req, res) => {
       text,
       mediaUrl: mediaUrl || null,
       mediaType: mediaType || null,
+      replyTo: replyTo || null,
+      isRead: false,
       createdAt: new Date()
     });
 
@@ -65,6 +68,8 @@ router.post('/:chatId', async (req, res) => {
       text: newMessage.text,
       mediaUrl: newMessage.mediaUrl,
       mediaType: newMessage.mediaType,
+      replyTo: newMessage.replyTo ? newMessage.replyTo.toString() : null,
+      isRead: newMessage.isRead,
       createdAt: newMessage.createdAt
     });
 

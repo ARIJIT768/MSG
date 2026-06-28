@@ -27,6 +27,7 @@ type ChatRoom = {
   lastMessage: string | null;
   lastMessageSender: string | null;
   lastMessageTime: string | null;
+  unreadCount?: number;
 };
 
 type UserProfile = {
@@ -73,11 +74,13 @@ export default function Inbox() {
     };
   }, [username]);
 
+  const totalUnread = chats.reduce((acc, chat) => acc + (chat.unreadCount || 0), 0);
+
   return (
     <div className="main-layout">
       <div className="sidebar glass-panel">
         <div className="sidebar-header">
-          <h2>Inbox <span className="badge">{chats.length}</span></h2>
+          <h2>Inbox {totalUnread > 0 && <span className="badge">{totalUnread}</span>}</h2>
           <button className="icon-button" onClick={() => setShowContacts(true)} aria-label="New chat">
             <MessageSquarePlus size={22} />
           </button>
@@ -120,11 +123,16 @@ export default function Inbox() {
                   <div className="chat-preview">
                     <div className="chat-preview-header">
                       <h3>{partnerUsername}</h3>
-                      {chat.lastMessageTime && (
-                        <span className="time">
-                          {new Date(chat.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      )}
+                      <div className="chat-meta" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {!!chat.unreadCount && chat.unreadCount > 0 && (
+                          <span className="badge" style={{ padding: '2px 6px', fontSize: '10px' }}>{chat.unreadCount}</span>
+                        )}
+                        {chat.lastMessageTime && (
+                          <span className="time">
+                            {new Date(chat.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p className="last-message">
                       {chat.lastMessageSender === username ? 'You: ' : ''}{displayLastMessage || 'Start chatting…'}

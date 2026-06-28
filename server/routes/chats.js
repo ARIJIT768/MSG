@@ -6,7 +6,32 @@ const Chat = require('../models/Chat');
 router.get('/:username', async (req, res) => {
   try {
     const { username } = req.params;
-    const chats = await Chat.find({ participants: username }).sort({ lastMessageTime: -1 });
+    const chats = await Chat.aggregate([
+      { $match: { participants: username } },
+      { $sort: { lastMessageTime: -1 } },
+      {
+        $lookup: {
+          from: 'messages',
+          let: { chatId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$chatId', '$$chatId'] },
+                senderId: { $ne: username },
+                isRead: false
+              }
+            },
+            { $count: 'unreadCount' }
+          ],
+          as: 'unreadData'
+        }
+      },
+      {
+        $addFields: {
+          unreadCount: { $ifNull: [{ $arrayElemAt: ['$unreadData.unreadCount', 0] }, 0] }
+        }
+      }
+    ]);
     
     // Format to match old Firebase structure
     const formattedChats = chats.map(chat => ({
@@ -14,7 +39,8 @@ router.get('/:username', async (req, res) => {
       participants: chat.participants,
       lastMessage: chat.lastMessage,
       lastMessageSender: chat.lastMessageSender,
-      lastMessageTime: chat.lastMessageTime
+      lastMessageTime: chat.lastMessageTime,
+      unreadCount: chat.unreadCount
     }));
 
     res.json(formattedChats);
