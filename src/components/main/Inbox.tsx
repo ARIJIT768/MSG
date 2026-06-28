@@ -138,8 +138,10 @@ export default function Inbox() {
 
   const handleStatusReply = async (status: any, text: string) => {
     try {
-      const res = await api.post('/chats', { participant: status.senderId });
-      const chatId = res.data._id;
+      // Must pass array of participants to /chats endpoint
+      const sortedUsers = [username || '', status.senderId].sort();
+      const res = await api.post('/chats', { participants: sortedUsers });
+      const chatId = res.data._id || res.data.id;
       
       const sharedKey = getSharedKey(username || '', status.senderId);
       const encryptedText = encryptMessage(text, sharedKey);

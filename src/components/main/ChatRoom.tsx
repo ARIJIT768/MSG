@@ -555,7 +555,7 @@ export default function ChatRoom() {
           const encryptedText = encryptMessage('🎤 Voice Note', sharedKey);
           
           socket.emit('send-message', {
-            id: tempId,
+            tempId,
             chatId,
             senderId: username,
             text: encryptedText,
