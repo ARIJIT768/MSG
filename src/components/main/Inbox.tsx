@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { api, socket } from '../../config/api';
 import CryptoJS from 'crypto-js';
-import { MessageSquarePlus, LogOut, Shield, Camera } from 'lucide-react';
+import { MessageSquarePlus, LogOut, Shield, Camera, Menu, X, Palette } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import ContactsModal from './ContactsModal';
 import './Main.css';
@@ -43,7 +43,14 @@ export default function Inbox() {
   const [chats, setChats] = useState<ChatRoom[]>([]);
   const [profiles, setProfiles] = useState<Record<string, UserProfile>>({});
   const [showContacts, setShowContacts] = useState(false);
+  const [showDrawer, setShowDrawer] = useState(false);
   const [isUpdatingPfp, setIsUpdatingPfp] = useState(false);
+  const [activeTheme, setActiveTheme] = useState(localStorage.getItem('msg_theme') || '');
+
+  useEffect(() => {
+    document.body.className = activeTheme;
+    localStorage.setItem('msg_theme', activeTheme);
+  }, [activeTheme]);
 
   const handleImageUpdate = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -112,7 +119,12 @@ export default function Inbox() {
     <div className="main-layout">
       <div className="sidebar glass-panel">
         <div className="sidebar-header">
-          <h2>Inbox {totalUnread > 0 && <span className="badge">{totalUnread}</span>}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button className="icon-button" onClick={() => setShowDrawer(true)} aria-label="Menu">
+              <Menu size={24} />
+            </button>
+            <h2>Inbox {totalUnread > 0 && <span className="badge">{totalUnread}</span>}</h2>
+          </div>
           <button className="icon-button" onClick={() => setShowContacts(true)} aria-label="New chat">
             <MessageSquarePlus size={22} />
           </button>
@@ -176,34 +188,69 @@ export default function Inbox() {
           )}
         </div>
 
-        <div className="sidebar-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div className="my-profile-mini">
-            <input
-              type="file"
-              id="update-pfp"
-              accept="image/*"
-              onChange={handleImageUpdate}
-              style={{ display: 'none' }}
-              disabled={isUpdatingPfp}
-            />
-            <label htmlFor="update-pfp" className="avatar my-avatar" style={{ cursor: 'pointer', opacity: isUpdatingPfp ? 0.5 : 1 }}>
-              {profilePicUrl ? (
-                <img src={profilePicUrl} alt="Me" />
-              ) : (
-                <div className="avatar-placeholder">{username?.charAt(0).toUpperCase()}</div>
-              )}
-              <div className="avatar-overlay">
-                <Camera size={14} color="#fff" />
-              </div>
-            </label>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>{username}</span>
-          </div>
-
-          <button className="logout-btn" onClick={logout} style={{ padding: '6px 10px', fontSize: 12 }}>
-            <LogOut size={14} /> Disconnect
-          </button>
-        </div>
+        {/* Footer Removed, moved to Hamburger Menu */}
       </div>
+
+      {showDrawer && (
+        <div className="drawer-overlay" onClick={() => setShowDrawer(false)}>
+          <div className="settings-drawer glass-panel" onClick={e => e.stopPropagation()}>
+            <div className="drawer-header">
+              <h2>Settings</h2>
+              <button className="icon-button" onClick={() => setShowDrawer(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="drawer-content">
+              {/* Profile Section */}
+              <div className="settings-section">
+                <h3>Profile</h3>
+                <div className="profile-edit-box">
+                  <input
+                    type="file"
+                    id="update-pfp"
+                    accept="image/*"
+                    onChange={handleImageUpdate}
+                    style={{ display: 'none' }}
+                    disabled={isUpdatingPfp}
+                  />
+                  <label htmlFor="update-pfp" className="avatar large-avatar" style={{ cursor: 'pointer', opacity: isUpdatingPfp ? 0.5 : 1 }}>
+                    {profilePicUrl ? (
+                      <img src={profilePicUrl} alt="Me" />
+                    ) : (
+                      <div className="avatar-placeholder">{username?.charAt(0).toUpperCase()}</div>
+                    )}
+                    <div className="avatar-overlay">
+                      <Camera size={24} color="#fff" />
+                    </div>
+                  </label>
+                  <div className="profile-info">
+                    <span className="profile-username">{username}</span>
+                    <span className="profile-sub">Tap avatar to change</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Theme Section */}
+              <div className="settings-section">
+                <h3><Palette size={16} /> Appearance</h3>
+                <div className="theme-options">
+                  <button className={`theme-btn ${activeTheme === '' ? 'active' : ''}`} onClick={() => setActiveTheme('')}>Midnight Glass</button>
+                  <button className={`theme-btn ${activeTheme === 'theme-cyberpunk' ? 'active' : ''}`} onClick={() => setActiveTheme('theme-cyberpunk')}>Cyberpunk Neon</button>
+                  <button className={`theme-btn ${activeTheme === 'theme-emerald' ? 'active' : ''}`} onClick={() => setActiveTheme('theme-emerald')}>Emerald Forest</button>
+                  <button className={`theme-btn ${activeTheme === 'theme-sunset' ? 'active' : ''}`} onClick={() => setActiveTheme('theme-sunset')}>Sunset Glow</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="drawer-footer">
+              <button className="logout-btn full-width" onClick={logout}>
+                <LogOut size={16} /> Disconnect from Network
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="main-content hidden-mobile">
         <div className="welcome-screen">

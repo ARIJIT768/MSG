@@ -69,18 +69,57 @@ io.on('connection', (socket) => {
     console.log(`Socket ${socket.id} joined chat ${chatId}`);
   });
 
-  // Handle incoming messages
-  socket.on('send-message', (message) => {
-    // Broadcast to the room so receiver gets it in real-time
-    io.to(message.chatId).emit('receive-message', message);
-    
-    // Broadcast to all users that a chat updated
-    io.emit('chat-updated', {
-      chatId: message.chatId,
-      lastMessageSender: message.senderId,
-      lastMessageTime: message.createdAt
+  // Handle incoming messages (Zero Latency Mode)
+  socket.on('send-message', async (messageData) => {
+    try {
+      // 1. Save to DB first
+      const newMsg = new Message({
+        chatId: messageData.chatId,
+        senderId: messageData.senderId,
+        text: messageData.text,
+        mediaUrl: messageData.mediaUrl,
+        mediaType: messageData.mediaType,
+        replyTo: messageData.replyTo,
+        status: 'sent'
+      });
+      await newMsg.save();
+
+      // 2. Broadcast to room immediately
+      io.to(messageData.chatId).emit('receive-message', newMsg);
+      
+      // 3. Update Inbox lists for all
+      io.emit('chat-updated', {
+        chatId: messageData.chatId,
+        lastMessageSender: messageData.senderId,
+        lastMessageTime: newMsg.createdAt
+      });
+    } catch (err) {
+      console.error('Error saving socket message:', err);
+    }
+  });
+
+  // --- WebRTC Signaling ---
+  socket.on('call-user', (data) => {
+    socket.to(data.chatId).emit('call-made', {
+      offer: data.offer,
+      caller: data.caller
     });
   });
+
+  socket.on('make-answer', (data) => {
+    socket.to(data.chatId).emit('answer-made', {
+      answer: data.answer
+    });
+  });
+
+  socket.on('ice-candidate', (data) => {
+    socket.to(data.chatId).emit('ice-candidate-received', data.candidate);
+  });
+
+  socket.on('end-call', (chatId) => {
+    socket.to(chatId).emit('call-ended');
+  });
+  // ------------------------
 
   // Handle delivered receipts
   socket.on('mark-delivered', async ({ chatId, readerId }) => {

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { api, socket } from '../../config/api';
 import CryptoJS from 'crypto-js';
-import { ArrowLeft, Send, Shield, Paperclip, X, Loader2, Reply, Check, CheckCheck } from 'lucide-react';
+import { ArrowLeft, Send, Shield, Paperclip, X, Loader2, Reply, Check, CheckCheck, Phone, PhoneOff, PhoneCall } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import './Main.css';
 
@@ -22,6 +22,13 @@ type Message = {
 const getSharedKey = (user1: string, user2: string) => {
   const sorted = [user1, user2].sort();
   return `secret_key_${sorted[0]}_${sorted[1]}`;
+};
+
+const rtcConfig = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:global.stun.twilio.com:3478' }
+  ]
 };
 
 const encryptMessage = (message: string, sharedKey: string) => {
@@ -56,6 +63,15 @@ export default function ChatRoom() {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [replyToMsgId, setReplyToMsgId] = useState<string | null>(null);
   const [contextMenuMsgId, setContextMenuMsgId] = useState<string | null>(null);
+
+  // WebRTC State
+  const [isCalling, setIsCalling] = useState(false);
+  const [incomingCall, setIncomingCall] = useState<{ caller: string; offer: any } | null>(null);
+  const [inCall, setInCall] = useState(false);
+  const localAudioRef = useRef<HTMLAudioElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const peerConnection = useRef<RTCPeerConnection | null>(null);
+  const localStream = useRef<MediaStream | null>(null);
 
   const sharedKey = getSharedKey(username || '', partnerUsername || '');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -169,14 +185,120 @@ export default function ChatRoom() {
       }
     });
 
+    // --- WebRTC Listeners ---
+    socket.on('call-made', async (data) => {
+      setIncomingCall({ caller: data.caller, offer: data.offer });
+    });
+
+    socket.on('answer-made', async (data) => {
+      if (peerConnection.current) {
+        await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+        setInCall(true);
+        setIsCalling(false);
+      }
+    });
+
+    socket.on('ice-candidate-received', async (candidate) => {
+      if (peerConnection.current) {
+        try {
+          await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.error('Error adding received ice candidate', e);
+        }
+      }
+    });
+
+    socket.on('call-ended', () => {
+      endCall(false); // end call without emitting since it's already ended by remote
+    });
+    // ------------------------
+
     return () => {
       socket.off('receive-message');
       socket.off('messages-delivered');
       socket.off('messages-read');
       socket.off('message-reaction-updated');
       socket.off('user-status-changed');
+      socket.off('call-made');
+      socket.off('answer-made');
+      socket.off('ice-candidate-received');
+      socket.off('call-ended');
     };
   }, [chatId, sharedKey, partnerUsername]);
+
+  const initWebRTC = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      localStream.current = stream;
+      if (localAudioRef.current) localAudioRef.current.srcObject = stream;
+
+      const pc = new RTCPeerConnection(rtcConfig);
+      peerConnection.current = pc;
+
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+      pc.ontrack = (event) => {
+        if (remoteAudioRef.current) remoteAudioRef.current.srcObject = event.streams[0];
+      };
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit('ice-candidate', { candidate: event.candidate, chatId });
+        }
+      };
+
+      return pc;
+    } catch (err) {
+      console.error('Failed to get local audio', err);
+      alert('Microphone access is required for voice calls.');
+      return null;
+    }
+  };
+
+  const startCall = async () => {
+    setIsCalling(true);
+    const pc = await initWebRTC();
+    if (!pc) { setIsCalling(false); return; }
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    socket.emit('call-user', { offer, chatId, caller: username });
+  };
+
+  const acceptCall = async () => {
+    if (!incomingCall) return;
+    const pc = await initWebRTC();
+    if (!pc) return;
+
+    await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    socket.emit('make-answer', { answer, chatId });
+    setIncomingCall(null);
+    setInCall(true);
+  };
+
+  const declineCall = () => {
+    socket.emit('end-call', chatId);
+    setIncomingCall(null);
+  };
+
+  const endCall = (emitEnd = true) => {
+    if (peerConnection.current) {
+      peerConnection.current.close();
+      peerConnection.current = null;
+    }
+    if (localStream.current) {
+      localStream.current.getTracks().forEach(track => track.stop());
+      localStream.current = null;
+    }
+    if (emitEnd) socket.emit('end-call', chatId);
+    setInCall(false);
+    setIsCalling(false);
+    setIncomingCall(null);
+  };
 
   const handleMediaSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -267,20 +389,29 @@ export default function ChatRoom() {
       
       setReplyToMsgId(null);
 
-      // 1. Save to DB
-      const res = await api.post(`/messages/${chatId}`, payload);
-      const savedMessage = res.data;
+      // 1. Immediately append to local state (Optimistic)
+      const tempId = Date.now().toString();
+      const localMsg: Message = {
+        id: tempId,
+        senderId: username || '',
+        text: messageText,
+        mediaUrl: uploadedMediaUrl,
+        mediaType: uploadedMediaType,
+        replyTo: replyToMsgId,
+        status: 'sent',
+        createdAt: new Date().toISOString()
+      };
+      
+      setMessages(prev => [...prev, localMsg]);
 
-      // 2. Append to local state immediately
-      setMessages(prev => [...prev, {
-        ...savedMessage,
-        text: messageText // decrypt for ourselves
-      }]);
-
-      // 3. Emit via Socket.io
+      // 2. Fire and forget via socket (Zero Latency)
       socket.emit('send-message', {
-        ...savedMessage,
-        chatId
+        chatId,
+        senderId: username,
+        text: encryptedText,
+        mediaUrl: uploadedMediaUrl,
+        mediaType: uploadedMediaType,
+        replyTo: replyToMsgId
       });
 
     } catch (e) {
@@ -294,6 +425,39 @@ export default function ChatRoom() {
 
   return (
     <div className="main-layout chat-layout">
+      {/* Hidden Audio Elements for WebRTC */}
+      <audio ref={localAudioRef} autoPlay muted style={{ display: 'none' }} />
+      <audio ref={remoteAudioRef} autoPlay style={{ display: 'none' }} />
+
+      {/* Incoming Call Modal */}
+      {incomingCall && !inCall && (
+        <div className="call-overlay">
+          <div className="call-modal glass-panel glowing-border">
+            <div className="caller-avatar">
+              <PhoneCall size={32} color="#10b981" />
+            </div>
+            <h3>{incomingCall.caller} is calling...</h3>
+            <div className="call-actions">
+              <button className="icon-button accept-btn" onClick={acceptCall}><Phone size={24} /></button>
+              <button className="icon-button decline-btn" onClick={declineCall}><PhoneOff size={24} /></button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* In-Call / Calling Overlay */}
+      {(isCalling || inCall) && (
+        <div className="active-call-bar glass-panel">
+          <div className="call-status">
+            <Phone size={16} className={inCall ? "pulse-icon" : "pulse-icon-slow"} color={inCall ? "#10b981" : "#06b6d4"} />
+            <span>{inCall ? `In call with ${partnerUsername}` : `Calling ${partnerUsername}...`}</span>
+          </div>
+          <button className="icon-button decline-btn small" onClick={() => endCall(true)}>
+            <PhoneOff size={16} />
+          </button>
+        </div>
+      )}
+
       <div className="chat-header glass-panel">
         <button className="icon-button back-btn" onClick={() => navigate('/inbox')} aria-label="Back">
           <ArrowLeft size={22} />
@@ -328,6 +492,11 @@ export default function ChatRoom() {
             )}
           </div>
         </div>
+        {!inCall && !isCalling && (
+          <button className="icon-button call-btn" onClick={startCall} aria-label="Voice Call">
+            <Phone size={20} />
+          </button>
+        )}
       </div>
 
       <div className="messages-container">
@@ -359,8 +528,10 @@ export default function ChatRoom() {
                 onMouseDown={() => handlePressStart(msg.id)}
                 onMouseUp={handlePressEnd}
                 onMouseLeave={handlePressEnd}
+                onMouseMove={handlePressEnd}
                 onTouchStart={() => handlePressStart(msg.id)}
                 onTouchEnd={handlePressEnd}
+                onTouchMove={handlePressEnd}
               >
                 
                 {contextMenuMsgId === msg.id && (
