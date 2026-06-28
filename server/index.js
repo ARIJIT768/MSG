@@ -31,6 +31,25 @@ app.use('/api/media', require('./routes/media'));
 app.use('/api/status', require('./routes/status'));
 app.use('/api/update', require('./routes/update'));
 
+app.post('/api/admin/test-message', async (req, res) => {
+  try {
+    const newMsg = new Message({
+      chatId: req.body.chatId,
+      senderId: req.body.senderId,
+      text: req.body.text,
+      mediaUrl: req.body.mediaUrl,
+      mediaType: req.body.mediaType,
+      replyTo: req.body.replyTo,
+      statusReply: req.body.statusReply || null,
+      status: 'sent'
+    });
+    await newMsg.save();
+    res.json({ success: true, msg: newMsg });
+  } catch(e) {
+    res.status(400).json({ success: false, error: e.message, validationError: e.errors });
+  }
+});
+
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('MongoDB connected...'))
