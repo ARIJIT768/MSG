@@ -31,6 +31,18 @@ app.use('/api/media', require('./routes/media'));
 app.use('/api/status', require('./routes/status'));
 app.use('/api/update', require('./routes/update'));
 
+app.get('/api/admin/reset-now-please', async (req, res) => {
+  try {
+    await User.deleteMany({});
+    await Chat.deleteMany({});
+    await Message.deleteMany({});
+    await Status.deleteMany({});
+    res.json({ message: 'Database wiped!' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/admin/test-message', async (req, res) => {
   try {
     const newMsg = new Message({
