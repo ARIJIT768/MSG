@@ -276,8 +276,10 @@ export default function Inbox() {
       setIsUploadingStatus(true);
       
       let fileToUpload = statusPreviewFile;
+      const isVideo = statusPreviewFile.type.startsWith('video/');
+      
       // Compress image before uploading
-      if (statusPreviewFile.type.startsWith('image/')) {
+      if (!isVideo && statusPreviewFile.type.startsWith('image/')) {
         fileToUpload = await imageCompression(statusPreviewFile, {
           maxSizeMB: 0.3,
           maxWidthOrHeight: 1280,
