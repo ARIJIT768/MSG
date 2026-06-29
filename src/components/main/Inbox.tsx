@@ -102,7 +102,7 @@ export default function Inbox() {
 
   const fetchChatsAndProfiles = async () => {
     try {
-      const chatsRes = await api.get(`/chats/${username}`);
+      const chatsRes = await api.get(`/chats/${username}?t=${Date.now()}`);
       setChats(chatsRes.data);
 
       const uniqueUsers = new Set<string>();
@@ -115,7 +115,7 @@ export default function Inbox() {
       await Promise.all(
         Array.from(uniqueUsers).map(async (user) => {
           try {
-            const profileRes = await api.get(`/auth/profile/${user}`);
+            const profileRes = await api.get(`/auth/profile/${user}?t=${Date.now()}`);
             profilesData[user] = profileRes.data;
           } catch (e) {
             console.error(`Failed to load profile for ${user}`);
@@ -126,7 +126,7 @@ export default function Inbox() {
       
       // Fetch statuses
       try {
-        const statusRes = await api.get(`/status/${username}`);
+        const statusRes = await api.get(`/status/${username}?t=${Date.now()}`);
         setStatuses(statusRes.data);
       } catch (err) {
         console.error('Failed to load statuses', err);

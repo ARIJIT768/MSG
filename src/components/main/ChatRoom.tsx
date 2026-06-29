@@ -130,7 +130,7 @@ export default function ChatRoom() {
   const loadMessages = async () => {
     if (!chatId) return;
     try {
-      const res = await api.get(`/messages/${chatId}`);
+      const res = await api.get(`/messages/${chatId}?t=${Date.now()}`);
       const msgs = res.data.map((msg: any) => ({
         ...msg,
         text: decryptMessage(msg.text, sharedKey)
