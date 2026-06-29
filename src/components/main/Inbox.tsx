@@ -128,6 +128,16 @@ export default function Inbox() {
       try {
         const statusRes = await api.get(`/status/${username}?t=${Date.now()}`);
         setStatuses(statusRes.data);
+        
+        // Preload status images in the background so they appear instantly when viewed
+        statusRes.data.forEach((userStatus: any) => {
+          userStatus.statuses.forEach((s: any) => {
+            if (s.mediaType === 'image' && s.mediaUrl) {
+              const img = new Image();
+              img.src = s.mediaUrl;
+            }
+          });
+        });
       } catch (err) {
         console.error('Failed to load statuses', err);
       }
@@ -266,11 +276,10 @@ export default function Inbox() {
       setIsUploadingStatus(true);
       
       let fileToUpload = statusPreviewFile;
-      const isVideo = statusPreviewFile.type.startsWith('video/');
-      
-      if (!isVideo) {
+      // Compress image before uploading
+      if (statusPreviewFile.type.startsWith('image/')) {
         fileToUpload = await imageCompression(statusPreviewFile, {
-          maxSizeMB: 1,
+          maxSizeMB: 0.3,
           maxWidthOrHeight: 1280,
           useWebWorker: true
         });
