@@ -62,9 +62,38 @@ router.post('/:chatId', async (req, res) => {
       lastMessageTime: new Date()
     });
 
-    // We emit via socket.io in the controller or from the frontend directly.
-    // The frontend will receive the response and then can emit 'new-message'.
-    
+    // ----------------------------------------------------
+    // NEW: Emit via socket.io from the controller directly!
+    // This guarantees DB persistence FIRST, then real-time delivery.
+    // ----------------------------------------------------
+    const io = req.app.get('io');
+    if (io) {
+      const msgObj = {
+        id: newMessage._id.toString(),
+        tempId: req.body.tempId || null, // Optional tempId from frontend for optimistic UI
+        chatId: newMessage.chatId,
+        senderId: newMessage.senderId,
+        text: newMessage.text,
+        mediaUrl: newMessage.mediaUrl,
+        mediaType: newMessage.mediaType,
+        replyTo: newMessage.replyTo,
+        statusReply: newMessage.statusReply,
+        status: newMessage.status,
+        createdAt: newMessage.createdAt
+      };
+
+      // Broadcast to room immediately
+      io.to(chatId).emit('receive-message', msgObj);
+
+      // Update Inbox lists for all
+      io.emit('chat-updated', {
+        chatId: chatId,
+        lastMessageSender: senderId,
+        lastMessageTime: newMessage.createdAt,
+        lastMessageText: previewText
+      });
+    }
+
     res.status(201).json({
       id: newMessage._id.toString(),
       senderId: newMessage.senderId,

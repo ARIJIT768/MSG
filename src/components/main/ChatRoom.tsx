@@ -479,16 +479,16 @@ export default function ChatRoom() {
       
       setMessages(prev => [...prev, localMsg]);
 
-      // 2. Fire and forget via socket (Zero Latency)
-      socket.emit('send-message', {
-        chatId,
-        tempId,
+      // 2. HTTP Post to guarantee DB persistence
+      await api.post(`/messages/${chatId}`, {
         senderId: username,
         text: encryptedText,
         mediaUrl: uploadedMediaUrl,
         mediaType: uploadedMediaType,
-        replyTo: replyToMsgId
+        replyTo: replyToMsgId,
+        tempId: tempId // Send tempId so the server can echo it back for optimistic UI
       });
+      // (The server now emits the 'receive-message' socket event directly)
 
     } catch (e) {
       console.error('Failed to send message', e);
@@ -545,23 +545,22 @@ export default function ChatRoom() {
         setIsSending(true);
         const formData = new FormData();
         formData.append('file', audioBlob, 'voice_note.webm');
+        const tempId = Date.now().toString(); // Move outside try block
         try {
           const res = await api.post('/media/upload', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
           });
           
           const audioUrl = res.data.url;
-          const tempId = Date.now().toString();
           const encryptedText = encryptMessage('🎤 Voice Note', sharedKey);
           
-          socket.emit('send-message', {
-            tempId,
-            chatId,
+          await api.post(`/messages/${chatId}`, {
             senderId: username,
             text: encryptedText,
             mediaUrl: audioUrl,
             mediaType: 'audio',
-            replyTo: replyToMsgId
+            replyTo: replyToMsgId,
+            tempId: tempId
           });
           
           setMessages(prev => [...prev, {
@@ -579,6 +578,8 @@ export default function ChatRoom() {
         } catch(err) {
           console.error("Audio send err", err);
           alert("Failed to send voice note.");
+          // Revert optimistic UI if it was added
+          setMessages(prev => prev.filter(m => m.id !== tempId));
         } finally {
           setIsSending(false);
         }

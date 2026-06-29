@@ -20,6 +20,12 @@ const io = new Server(server, {
   }
 });
 
+app.set('io', io);
+
+// Store active users for presence tracking
+// Key: socket.id, Value: username
+const connectedUsers = new Map();
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -143,10 +149,19 @@ io.on('connection', (socket) => {
       io.emit('chat-updated', {
         chatId: messageData.chatId,
         lastMessageSender: messageData.senderId,
+        lastMessageTime: newMsg.createdAt,
+        lastMessageText: newMsg.mediaType ? (newMsg.mediaType === 'audio' ? '🎤 Voice Note' : '📷 Media') : newMsg.text
+      });
+
+      // We should also update the DB for the chat's last message!
+      await Chat.findByIdAndUpdate(messageData.chatId, {
+        lastMessage: newMsg.mediaType ? (newMsg.mediaType === 'audio' ? '🎤 Voice Note' : '📷 Media') : newMsg.text,
+        lastMessageSender: messageData.senderId,
         lastMessageTime: newMsg.createdAt
       });
     } catch (err) {
       console.error('Error saving socket message:', err);
+      socket.emit('message-error', err.toString());
     }
   });
 
